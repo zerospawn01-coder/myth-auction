@@ -1,7 +1,7 @@
 extends Control
 
-const AetherAudioEngineScript = preload("res://addons/aether_fountain_audio/aether_audio_engine.gd")
-const AetherAudioDebugPanelScript = preload("res://addons/aether_fountain_audio/aether_audio_debug_panel.gd")
+const MythAudioEngineScript = preload("res://addons/myth_audio/myth_audio_engine.gd")
+const MythAudioDebugPanelScript = preload("res://addons/myth_audio/myth_audio_debug_panel.gd")
 const PlayerStateScript = preload("res://scripts/core/player_state.gd")
 const DataLoaderScript = preload("res://scripts/core/data_loader.gd")
 const ResearchStateScript = preload("res://scripts/research/research_state.gd")
@@ -111,10 +111,12 @@ func _initialize_audio_engine() -> void:
 				audio_engine = engine_candidate
 		return
 
-	audio_engine = AetherAudioEngineScript.new()
-	audio_engine.name = "AetherAudioEngine"
-	audio_engine.auto_initialize = false
+	audio_engine = MythAudioEngineScript.new()
+	audio_engine.name = "MythAudioEngine"
 	add_child(audio_engine)
+	
+	audio_debug = MythAudioDebugPanelScript.new()
+	add_child(audio_debug)
 	audio_engine.initialize()
 
 func _build_ui() -> void:

@@ -4,7 +4,7 @@ signal state_changed(state: String)
 signal cue_activity_changed(active_cues: Dictionary)
 signal parameters_changed(risk: float, corruption: float)
 
-const AetherAudioEngineScript = preload("res://addons/aether_fountain_audio/aether_audio_engine.gd")
+const MythAudioEngineScript = preload("res://addons/myth_audio/myth_audio_engine.gd")
 
 enum Backend {
 	PROCEDURAL,
@@ -28,8 +28,8 @@ func initialize() -> void:
 	if _engine != null:
 		return
 
-	_engine = AetherAudioEngineScript.new()
-	_engine.name = "AetherAudioEngine"
+	_engine = MythAudioEngineScript.new()
+	_engine.name = "MythAudioEngine"
 	_engine.auto_initialize = false
 	add_child(_engine)
 	_connect_engine_signals()
@@ -99,7 +99,7 @@ func set_cue_parameter(parameter_id: String, value: float) -> void:
 		"Corruption", "corruption":
 			set_parameters(_risk, value)
 		_:
-			push_warning("Unknown Aether audio parameter: %s" % parameter_id)
+			push_warning("Unknown Myth audio parameter: %s" % parameter_id)
 
 
 func set_master_volume(volume: float) -> void:

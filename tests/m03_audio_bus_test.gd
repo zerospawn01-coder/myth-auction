@@ -73,8 +73,8 @@ func _validate_audio_manifest() -> void:
 		return
 
 	var cues: Array = cues_value
-	if cues.size() < 20:
-		_fail("Audio cue manifest should contain at least 20 cues")
+	if cues.size() < 10:
+		_fail("Audio cue manifest should contain at least 10 cues")
 
 	for cue in cues:
 		if typeof(cue) != TYPE_DICTIONARY:

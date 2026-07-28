@@ -113,10 +113,8 @@ func _initialize_audio_engine() -> void:
 
 	audio_engine = MythAudioEngineScript.new()
 	audio_engine.name = "MythAudioEngine"
+	audio_engine.auto_initialize = false
 	add_child(audio_engine)
-	
-	audio_debug = MythAudioDebugPanelScript.new()
-	add_child(audio_debug)
 	audio_engine.initialize()
 
 func _build_ui() -> void:

@@ -1,5 +1,5 @@
 extends Node
-class_name AetherAudioEngine
+class_name MythAudioEngine
 
 signal state_changed(state: String)
 signal cue_activity_changed(active_cues: Dictionary)
@@ -25,21 +25,12 @@ const CUE_SHEET := [
 	{"id": "cue_ui_cancel", "name": "UI Cancel", "category": "UI", "description": "Pitch sliding action cancel"},
 	{"id": "cue_ui_tab_switch", "name": "UI Tab Switch", "category": "UI", "description": "Narrowband sweep transition"},
 	{"id": "cue_ui_error", "name": "UI Error", "category": "UI", "description": "Discordant error block alert"},
-	{"id": "cue_gene_mixer_start", "name": "Mixer Start", "category": "Device", "description": "Gene synthesizer spin up"},
-	{"id": "cue_gene_mixer_loop", "name": "Mixer Loop", "category": "Device", "description": "Continuous bubbling liquid state"},
-	{"id": "cue_gene_mixer_complete", "name": "Mixer Complete", "category": "Device", "description": "Sparkling biological assembly"},
-	{"id": "cue_extractor_start", "name": "Extractor Start", "category": "Device", "description": "DNA compressor pressure rise"},
-	{"id": "cue_extractor_complete", "name": "Extractor Complete", "category": "Device", "description": "Steam hiss and mechanical latch release"},
 	{"id": "cue_gate_scan", "name": "Gate Scan", "category": "Gate", "description": "Cyclic scanning sweeps"},
 	{"id": "cue_gate_approve", "name": "Gate Approve", "category": "Gate", "description": "Heavy door magnetic unlock thud"},
 	{"id": "cue_gate_reject", "name": "Gate Reject", "category": "Gate", "description": "Electronic alarm buzzer drop"},
 	{"id": "cue_gate_fail_closed", "name": "Gate Fail-Closed", "category": "Gate", "description": "Emergency shutter slam and sirens"},
 	{"id": "cue_ledger_write", "name": "Ledger Write", "category": "Gate", "description": "Heavy immutable ink registration thud"},
 	{"id": "cue_ledger_warning", "name": "Ledger Warning", "category": "Gate", "description": "Telemetry warning database entry"},
-	{"id": "cue_bioloid_birth", "name": "Bioroid Birth", "category": "Bioroid", "description": "Harmonic bio-frequency alignment"},
-	{"id": "cue_bioloid_corrupt", "name": "Bioroid Corrupt", "category": "Bioroid", "description": "Descending pulse steps"},
-	{"id": "cue_bioloid_accident", "name": "Bioroid Accident", "category": "Bioroid", "description": "Overrun alarm"},
-	{"id": "cue_bioloid_lost", "name": "Bioroid Lost", "category": "Bioroid", "description": "Flatline pulse sequence"},
 	{"id": "cue_mission_dispatch", "name": "Mission Dispatch", "category": "Mission", "description": "Propulsion acceleration hiss"},
 	{"id": "cue_mission_result", "name": "Mission Result", "category": "Mission", "description": "Conditional task outcome"},
 	{"id": "cue_lab_ambience_loop", "name": "Lab Ambience", "category": "Ambience", "description": "Corruption-reactive laboratory drone"}
@@ -133,7 +124,7 @@ func initialize() -> void:
 	stream.buffer_length = OUTPUT_BUFFER_LENGTH
 
 	_stream_player = AudioStreamPlayer.new()
-	_stream_player.name = "AetherSynthOutput"
+	_stream_player.name = "MythSynthOutput"
 	_stream_player.stream = stream
 	add_child(_stream_player)
 	_stream_player.play()
@@ -197,7 +188,7 @@ func set_master_volume(volume: float) -> void:
 
 func set_category_volume(category: String, volume: float) -> void:
 	if not _category_volumes.has(category):
-		push_warning("Unknown Aether audio category: %s" % category)
+		push_warning("Unknown Myth audio category: %s" % category)
 		return
 	_category_volumes[category] = clamp(volume, 0.0, 1.0)
 
@@ -234,17 +225,6 @@ func play_cue(cue_id: String) -> bool:
 			duration = _cue_ui_tab_switch()
 		"cue_ui_error":
 			duration = _cue_ui_error()
-		"cue_gene_mixer_start":
-			duration = _cue_gene_mixer_start()
-		"cue_gene_mixer_loop":
-			start_mixer_loop()
-			latch_until_stopped = true
-		"cue_gene_mixer_complete":
-			duration = _cue_gene_mixer_complete()
-		"cue_extractor_start":
-			duration = _cue_extractor_start()
-		"cue_extractor_complete":
-			duration = _cue_extractor_complete()
 		"cue_gate_scan":
 			start_scan_loop()
 			latch_until_stopped = true
@@ -258,14 +238,6 @@ func play_cue(cue_id: String) -> bool:
 			duration = _cue_ledger_write()
 		"cue_ledger_warning":
 			duration = _cue_ledger_warning()
-		"cue_bioloid_birth":
-			duration = _cue_bioloid_birth()
-		"cue_bioloid_corrupt":
-			duration = _cue_bioloid_corrupt()
-		"cue_bioloid_accident":
-			duration = _cue_bioloid_accident()
-		"cue_bioloid_lost":
-			duration = _cue_bioloid_lost()
 		"cue_mission_dispatch":
 			duration = _cue_mission_dispatch()
 		"cue_mission_result":
@@ -274,7 +246,7 @@ func play_cue(cue_id: String) -> bool:
 			start_ambience()
 			latch_until_stopped = true
 		_:
-			push_warning("Unknown Aether audio cue: %s" % cue_id)
+			push_warning("Unknown Myth audio cue: %s" % cue_id)
 			_set_cue_active(resolved_cue_id, false)
 			return false
 

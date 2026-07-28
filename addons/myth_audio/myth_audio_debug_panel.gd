@@ -1,7 +1,7 @@
 extends VBoxContainer
-class_name AetherAudioDebugPanel
+class_name MythAudioDebugPanel
 
-const AetherAudioEngineScript = preload("res://addons/aether_fountain_audio/aether_audio_engine.gd")
+const MythAudioEngineScript = preload("res://addons/myth_audio/myth_audio_engine.gd")
 
 @export var audio_engine_path: NodePath
 
@@ -30,8 +30,8 @@ func _resolve_engine() -> void:
 	if not audio_engine_path.is_empty():
 		_engine = get_node_or_null(audio_engine_path)
 	if _engine == null:
-		_engine = AetherAudioEngineScript.new()
-		_engine.name = "AetherAudioEngine"
+		_engine = MythAudioEngineScript.new()
+		_engine.name = "MythAudioEngine"
 		add_child(_engine)
 
 	if _engine.has_method("initialize"):
@@ -51,7 +51,7 @@ func _connect_engine() -> void:
 
 func _build_ui() -> void:
 	var title := Label.new()
-	title.text = "Aether Audio Debug"
+	title.text = "Myth Audio Debug"
 	title.add_theme_font_size_override("font_size", 16)
 	add_child(title)
 
@@ -73,7 +73,6 @@ func _build_ui() -> void:
 	loop_row.add_theme_constant_override("separation", 6)
 	add_child(loop_row)
 	_add_command_button(loop_row, "Ambience", "_on_ambience_pressed")
-	_add_command_button(loop_row, "Mixer Loop", "_on_mixer_loop_pressed")
 	_add_command_button(loop_row, "Gate Scan", "_on_gate_scan_pressed")
 	_add_command_button(loop_row, "Stop Loops", "_on_stop_loops_pressed")
 
@@ -88,7 +87,7 @@ func _build_ui() -> void:
 		if typeof(cue) != TYPE_DICTIONARY:
 			continue
 		var cue_id := str(cue.get("id", ""))
-		if cue_id == "cue_lab_ambience_loop" or cue_id == "cue_gene_mixer_loop" or cue_id == "cue_gate_scan":
+		if cue_id == "cue_lab_ambience_loop" or cue_id == "cue_gate_scan":
 			continue
 		var button := Button.new()
 		button.text = str(cue.get("name", cue_id))
@@ -174,11 +173,6 @@ func _on_ambience_pressed() -> void:
 		_engine.call("play_cue", "cue_lab_ambience_loop")
 
 
-func _on_mixer_loop_pressed() -> void:
-	if _engine != null and _engine.has_method("play_cue"):
-		_engine.call("play_cue", "cue_gene_mixer_loop")
-
-
 func _on_gate_scan_pressed() -> void:
 	if _engine != null and _engine.has_method("play_cue"):
 		_engine.call("play_cue", "cue_gate_scan")
@@ -187,7 +181,7 @@ func _on_gate_scan_pressed() -> void:
 func _on_stop_loops_pressed() -> void:
 	if _engine == null:
 		return
-	for method_name in ["stop_mixer_loop", "stop_scan_loop", "stop_ambience"]:
+	for method_name in ["stop_scan_loop", "stop_ambience"]:
 		if _engine.has_method(method_name):
 			_engine.call(method_name)
 

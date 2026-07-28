@@ -1,16 +1,24 @@
-# Aether Fountain Audio
+# Myth Audio
 
-Procedural Godot 4 audio asset derived from `aether-fountain.zip`.
+Procedural Godot 4 audio asset derived from `myth-audio.zip`.
 
-The source ZIP contains a WebAudio `AudioEngine.ts` with CRIWARE ADX-style event cues. This asset ports that design to Godot with an `AudioStreamGenerator` synthesizer. Placeholder WAVs are also placed under `res://assets/audio/placeholders/` for future CRI Atom Craft authoring.
+## Components
 
-## Files
+- `myth_audio_engine.gd` - runtime audio engine node.
+- `myth_audio_debug_panel.gd` - optional UI panel for auditioning cues and AISAC-like parameters.
 
-- `aether_audio_engine.gd` - runtime audio engine node.
-- `aether_audio_debug_panel.gd` - optional UI panel for auditioning cues and AISAC-like parameters.
-- `plugin.cfg` / `plugin.gd` - editor add-on metadata.
-- `res://scripts/audio_bus.gd` - autoload facade used by gameplay scripts.
-- `res://data/audio_cues.json` - cue manifest and future CRIWARE handoff data.
+## Setup
+
+1. Copy `addons/myth_audio` to your `addons` folder.
+2. Ensure you have activated the plugin, though it is not strictly required if you instance the script manually.
+
+## Usage
+
+```gdscript
+const MythAudioEngine = preload("res://addons/myth_audio/myth_audio_engine.gd")
+
+var audio := MythAudioEngine.new()
+```
 
 ## Runtime API
 

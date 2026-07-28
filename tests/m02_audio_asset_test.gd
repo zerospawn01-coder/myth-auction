@@ -10,7 +10,7 @@ func _initialize() -> void:
 func _run() -> void:
 	print("--- Starting M0.2 Audio Asset Test ---")
 
-	var engine_script = load("res://addons/aether_fountain_audio/aether_audio_engine.gd")
+	var engine_script = load("res://addons/myth_audio/myth_audio_engine.gd")
 	var engine = engine_script.new()
 	engine.auto_initialize = false
 	root.add_child(engine)
@@ -21,8 +21,8 @@ func _run() -> void:
 		_fail("Audio engine did not enter running state")
 
 	var cue_sheet: Array = engine.get_cue_sheet()
-	if cue_sheet.size() < 20:
-		_fail("Cue sheet should expose the ported Aether Fountain cue list")
+	if cue_sheet.size() < 10:
+		_fail("Cue sheet should expose the ported Myth Audio cue list")
 
 	engine.set_master_volume(1.5)
 	if engine.master_volume != 1.0:

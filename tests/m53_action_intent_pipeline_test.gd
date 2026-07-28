@@ -190,6 +190,10 @@ func _run() -> void:
 	state11.receive_lot()
 	var gold11_before := int(state11.resources.get("gold", 0))
 	var ledger_len11_before: int = state11.trace_ledger.entries.size()
+	var hash11_before: String = state11.trace_ledger.get_latest_hash()
+	var events11_before: int = state11.action_events.size()
+	var history11_before: int = state11.participant_history_index.size()
+	var tick11_before: int = state11.tick
 	var intent11 := {
 		"action_id": "ACTION_INTENT_COMMITTED",
 		"participants": [{
@@ -201,12 +205,29 @@ func _run() -> void:
 	}
 	var reserved11 := PipelineScript.reserve_outcome(intent11, state11, null)
 	_assert_true(reserved11.get("error", "") == "", "C11: reservation must succeed")
+	
+	# After reserve_outcome, the state has advanced (tick, ledger, etc)
+	# Capture the true pre-apply state to verify complete rollback
+	var pre_apply_gold: int = int(state11.resources.get("gold", 0))
+	var pre_apply_ledger_len: int = state11.trace_ledger.entries.size()
+	var pre_apply_hash: String = state11.trace_ledger.get_latest_hash()
+	var pre_apply_events: int = state11.action_events.size()
+	var pre_apply_history: int = state11.participant_history_index.size()
+	var pre_apply_tick: int = state11.tick
+
 	# Force ledger append failure by corrupting tick expectation before apply
 	state11.tick = 999999
 	var apply11 := PipelineScript.apply_reserved(reserved11, state11)
 	_assert_true(not bool(apply11.get("ok", true)), "C11: apply_reserved must fail when ledger append fails")
 	_assert_true(bool(apply11.get("ledger_error", false)), "C11: error must indicate ledger_error")
-	_assert_equal(int(state11.resources.get("gold", 0)), gold11_before, "C11: gold must be rolled back to pre-apply state")
+
+	# Assert full rollback
+	_assert_equal(int(state11.resources.get("gold", 0)), pre_apply_gold, "C11: gold must be rolled back to pre-apply state")
+	_assert_equal(state11.trace_ledger.entries.size(), pre_apply_ledger_len, "C11: ledger size must be rolled back to pre-apply")
+	_assert_equal(state11.trace_ledger.get_latest_hash(), pre_apply_hash, "C11: ledger hash tip must be rolled back to pre-apply")
+	_assert_equal(state11.tick, 999999, "C11: tick rollback restores the value it had right before apply_reserved (corrupted 999999)")
+	_assert_equal(state11.action_events.size(), pre_apply_events, "C11: action_events size must be rolled back")
+	_assert_equal(state11.participant_history_index.size(), pre_apply_history, "C11: participant_history_index must be rolled back")
 	_assert_true(state11.pending_action_intents.has(str(reserved11.get("event_id", ""))), "C11: reservation must be retained for resolution")
 
 	# ── Case 12: Mid-execution failure → resource adjustment rolled back (O2-T2)
@@ -227,7 +248,7 @@ func _run() -> void:
 		"participant_index": {},
 		"effects": [
 			{"op": "ADJUST_RESOURCE", "axis": "gold", "delta": -50},
-			{"op": "INVALID_MID_EXECUTION_OP", "value": "crash"}
+			{"op": "SET_EVIDENCE_STATUS", "evidence_id": "EV_MISSING", "status": "KNOWN"}
 		],
 		"context": {},
 		"input_revision": 1,
@@ -236,7 +257,7 @@ func _run() -> void:
 	state12.pending_action_intents[event_id12] = reserved12
 	var apply12 := PipelineScript.apply_reserved(reserved12, state12)
 	_assert_true(not bool(apply12.get("ok", true)), "C12: apply_reserved must fail on mid-execution error")
-	_assert_equal(int(state12.resources.get("gold", 0)), gold12_before, "C12: gold adjustment must be rolled back")
+	_assert_equal(int(state12.resources.get("gold", 0)), gold12_before, "C12: gold adjustment must be completely rolled back")
 
 	# ── Case 13: Apply unreserved event_id rejected without state change (O2-T3)
 	print("  Case 13: Unreserved event_id apply rejection (O2-T3)")

@@ -184,6 +184,96 @@ func _run() -> void:
 	var apply10 := PipelineScript.apply_reserved(restored10.pending_action_intents[event_id10], restored10)
 	_assert_true(bool(apply10.get("ok", false)), "C10: restored reservation must apply")
 
+	# ── Case 11: Ledger append failure during apply → rollback pre-apply state ──
+	print("  Case 11: Ledger append failure rollback (O2-T1)")
+	var state11 = _fresh_state()
+	state11.receive_lot()
+	var gold11_before := int(state11.resources.get("gold", 0))
+	var ledger_len11_before: int = state11.trace_ledger.entries.size()
+	var intent11 := {
+		"action_id": "ACTION_INTENT_COMMITTED",
+		"participants": [{
+			"entity_kind": "SUBJECT",
+			"entity_id": str(state11.lot_state.get("lot_id", "LOT-TEST")),
+			"semantic_role": "TEST_SUBJECT"
+		}],
+		"effects": [{"op": "ADJUST_RESOURCE", "axis": "gold", "delta": -100}]
+	}
+	var reserved11 := PipelineScript.reserve_outcome(intent11, state11, null)
+	_assert_true(reserved11.get("error", "") == "", "C11: reservation must succeed")
+	# Force ledger append failure by corrupting tick expectation before apply
+	state11.tick = 999999
+	var apply11 := PipelineScript.apply_reserved(reserved11, state11)
+	_assert_true(not bool(apply11.get("ok", true)), "C11: apply_reserved must fail when ledger append fails")
+	_assert_true(bool(apply11.get("ledger_error", false)), "C11: error must indicate ledger_error")
+	_assert_equal(int(state11.resources.get("gold", 0)), gold11_before, "C11: gold must be rolled back to pre-apply state")
+	_assert_true(state11.pending_action_intents.has(str(reserved11.get("event_id", ""))), "C11: reservation must be retained for resolution")
+
+	# ── Case 12: Mid-execution failure → resource adjustment rolled back (O2-T2)
+	print("  Case 12: Mid-execution effect failure rollback (O2-T2)")
+	var state12 = _fresh_state()
+	state12.receive_lot()
+	var gold12_before := int(state12.resources.get("gold", 0))
+	var event_id12 := "EVT-TEST-MID-FAIL"
+	var reserved12 := {
+		"event_id": event_id12,
+		"action_id": "TEST_MID_FAIL",
+		"consequence_key": {"test": true},
+		"participants": [{
+			"entity_kind": "SUBJECT",
+			"entity_id": "LOT-TEST",
+			"semantic_role": "TEST_SUBJECT"
+		}],
+		"participant_index": {},
+		"effects": [
+			{"op": "ADJUST_RESOURCE", "axis": "gold", "delta": -50},
+			{"op": "INVALID_MID_EXECUTION_OP", "value": "crash"}
+		],
+		"context": {},
+		"input_revision": 1,
+		"error": ""
+	}
+	state12.pending_action_intents[event_id12] = reserved12
+	var apply12 := PipelineScript.apply_reserved(reserved12, state12)
+	_assert_true(not bool(apply12.get("ok", true)), "C12: apply_reserved must fail on mid-execution error")
+	_assert_equal(int(state12.resources.get("gold", 0)), gold12_before, "C12: gold adjustment must be rolled back")
+
+	# ── Case 13: Apply unreserved event_id rejected without state change (O2-T3)
+	print("  Case 13: Unreserved event_id apply rejection (O2-T3)")
+	var state13 = _fresh_state()
+	state13.receive_lot()
+	var gold13_before := int(state13.resources.get("gold", 0))
+	var ledger_len13_before: int = state13.trace_ledger.entries.size()
+	var unreserved_intent := {
+		"event_id": "EVT-UNRESERVED-999",
+		"action_id": "UNRESERVED_ACTION",
+		"effects": [{"op": "ADJUST_RESOURCE", "axis": "gold", "delta": -500}]
+	}
+	var apply13 := PipelineScript.apply_reserved(unreserved_intent, state13)
+	_assert_true(not bool(apply13.get("ok", true)), "C13: apply_reserved must reject unreserved event_id")
+	_assert_equal(str(apply13.get("error", "")), "reservation is not committed", "C13: error message must state reservation not committed")
+	_assert_equal(int(state13.resources.get("gold", 0)), gold13_before, "C13: gold must be unchanged")
+	_assert_equal(state13.trace_ledger.entries.size(), ledger_len13_before, "C13: ledger entries must be unchanged")
+
+	# ── Case 14: Phase 1 failure leaves zero pending/ledger pollution (O2-T4) ─
+	print("  Case 14: Phase 1 reservation failure zero pollution (O2-T4)")
+	var state14 = _fresh_state()
+	state14.receive_lot()
+	var ledger_len14_before: int = state14.trace_ledger.entries.size()
+	var invalid_intent14 := {
+		"action_id": "BAD_INTENT",
+		"participants": [{
+			"entity_kind": "INVALID_KIND",
+			"entity_id": "ID",
+			"semantic_role": "ROLE"
+		}],
+		"effects": []
+	}
+	var reserved14 := PipelineScript.reserve_outcome(invalid_intent14, state14, null)
+	_assert_true(reserved14.get("error", "") != "", "C14: reserve_outcome must report error for invalid participant")
+	_assert_true(state14.pending_action_intents.is_empty(), "C14: pending_action_intents must remain empty")
+	_assert_equal(state14.trace_ledger.entries.size(), ledger_len14_before, "C14: trace_ledger size must remain unchanged")
+
 	_finish()
 
 

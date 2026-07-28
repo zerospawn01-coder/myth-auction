@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "source": {
+    "id": "aether_fountain_zip",
+    "name": "Aether Fountain",
+    "description": "Bio-Research and Sound Auditing Console source content."
+  },
+  "resources": [
+    {
+      "id": "biomass",
+      "display_name": "Biomass",
+      "starting_amount": 8,
+      "description": "Base organic matter consumed by the mixer."
+    },
+    {
+      "id": "nutrient_gel",
+      "display_name": "Nutrient Gel",
+      "starting_amount": 5,
+      "description": "Stabilizing food medium for a new sample."
+    },
+    {
+      "id": "catalyst_spores",
+      "display_name": "Catalyst Spores",
+      "starting_amount": 4,
+      "description": "Reactive culture used to start the gene mix."
+    },
+    {
+      "id": "gene_sample",
+      "display_name": "Gene Sample",
+      "starting_amount": 0,
+      "description": "The MVP output item produced by the mixer."
+    }
+  ],
+  "item_stats": [
+    {
+      "id": "growth",
+      "display_name": "Growth",
+      "short_label": "GRO",
+      "min": 0,
+      "max": 100,
+      "description": "How quickly the sample develops."
+    },
+    {
+      "id": "stability",
+      "display_name": "Stability",
+      "short_label": "STA",
+      "min": 0,
+      "max": 100,
+      "description": "How reliably the sample keeps its traits."
+    },
+    {
+      "id": "potency",
+      "display_name": "Potency",
+      "short_label": "POT",
+      "min": 0,
+      "max": 100,
+      "description": "Strength of the expressed gene package."
+    },
+    {
+      "id": "yield",
+      "display_name": "Yield",
+      "short_label": "YLD",
+      "min": 0,
+      "max": 100,
+      "description": "Expected useful output from the sample."
+    },
+    {
+      "id": "resilience",
+      "display_name": "Resilience",
+      "short_label": "RES",
+      "min": 0,
+      "max": 100,
+      "description": "Tolerance for imperfect lab conditions."
+    },
+    {
+      "id": "mutation_risk",
+      "display_name": "Mutation Risk",
+      "short_label": "MUT",
+      "min": 0,
+      "max": 100,
+      "description": "Chance that the sample changes unpredictably."
+    }
+  ],
+  "production_actions": [
+    {
+      "id": "mix_gene_sample",
+      "display_name": "Initiate Genetic Hybridization",
+      "description": "Consumes starter materials to synthesize one Aether Fountain bioroid gene sample with six rolled stats.",
+      "consumes": {
+        "biomass": 2,
+        "nutrient_gel": 1,
+        "catalyst_spores": 1
+      },
+      "produces": {
+        "gene_sample": 1
+      },
+      "output_item_name": "Gene Sample",
+      "generated_item_stat_ranges": {
+        "growth": [35, 70],
+        "stability": [30, 75],
+        "potency": [20, 80],
+        "yield": [25, 65],
+        "resilience": [25, 70],
+        "mutation_risk": [10, 55]
+      }
+    }
+  ],
+  "generation_pools": {
+    "names": [
+      "Aria",
+      "Scylla",
+      "Kaelen",
+      "Zephyr",
+      "Hesper",
+      "Ligeia",
+      "Melusine",
+      "Thalassa",
+      "Orpheus",
+      "Eirene"
+    ],
+    "codename_prefixes": [
+      "XF-302",
+      "BF-990",
+      "RX-510",
+      "NX-815",
+      "TX-224",
+      "AX-701",
+      "CX-449",
+      "QX-118",
+      "SF-607",
+      "DX-031"
+    ],
+    "gene_strains": [
+      {
+        "id": "strain_alpha",
+        "display_name": "Alpha-a Core Sequence",
+        "short_label": "Alpha-a",
+        "description": "Promotes muscle density and endurance. Extreme metabolic volatility.",
+        "risk_boost": 15,
+        "corruption_boost": 10
+      },
+      {
+        "id": "strain_beta",
+        "display_name": "Beta-b Neural Grid",
+        "short_label": "Beta-b",
+        "description": "High analytical capability. Self-repair matrix dampens corruption.",
+        "risk_boost": 5,
+        "corruption_boost": -15
+      },
+      {
+        "id": "strain_delta",
+        "display_name": "Delta-d Synthetic Frame",
+        "short_label": "Delta-d",
+        "description": "Reinforced carbon skeleton. High mechanical reliability with unpredictable risk spikes.",
+        "risk_boost": 25,
+        "corruption_boost": 5
+      },
+      {
+        "id": "strain_omega",
+        "display_name": "Omega-w Organic Fluid",
+        "short_label": "Omega-w",
+        "description": "Volatile protoplasm. Extremely organic and prone to rapid biological mutation.",
+        "risk_boost": 10,
+        "corruption_boost": 30
+      }
+    ],
+    "anomalies": [
+      "Unstable Cardiac Pulse",
+      "Synaptic Echo Chamber",
+      "Marrow Over-Calcification",
+      "Cellular Necrosis Leak",
+      "Sub-audible Vocal Pulses",
+      "High Density Cytoplasm",
+      "Asymmetrical Respiratory Lobe",
+      "Melatonin Hyper-Secretor",
+      "Exotic Bio-Lumissions"
+    ],
+    "descriptions": [
+      "Subject exhibits stable metabolic parameters but a highly responsive peripheral nervous grid. Recommend careful Gate auditing.",
+      "Biological framework heavily modified by carbon micro-fibers. Shows superior motor skills under moderate warning pressure.",
+      "Unstable chemical gradients detected in the fluid core. Gene sequences are fragile and prone to sudden cellular breakdown.",
+      "Highly evolved neural assembly. Self-awareness thresholds exceed typical research parameters. Gate audit is highly critical."
+    ]
+  }
+}

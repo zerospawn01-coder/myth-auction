@@ -1,0 +1,753 @@
+{
+  "schema_version": 1,
+  "episode_id": "episode_ma001",
+  "world_seed": "MYTH-AUCTION-MA001-2026",
+  "lot": {
+    "lot_id": "MA-001",
+    "display_name": "灰白色の祭祀鏡",
+    "category": "鏡状祭具",
+    "materials": [
+      "銀合金",
+      "黒色ガラス"
+    ],
+    "seller_id": "seller_kurobane",
+    "seller_claim": "旧家の守護具",
+    "provenance": "一部不明",
+    "appearance": "縁に補修跡あり",
+    "hazard": "未確認",
+    "initial_weight_kg": 2.184,
+    "initial_unknowns": [
+      "真正性",
+      "文化的由来",
+      "異常現象",
+      "出品者説明",
+      "過去所有者",
+      "反応条件"
+    ]
+  },
+  "observation_methods": [
+    {
+      "id": "obs_visual",
+      "label": "肉眼・拡大観察",
+      "layer": "appearance",
+      "cost": 0,
+      "variants": [
+        {
+          "summary": "外観層を確定",
+          "findings": [
+            "縁の補修材だけが本体より新しい",
+            "裏面に削られた刻印がある",
+            "鏡面中央に通常とは異なる曇りがある"
+          ],
+          "hazard_tags": [],
+          "unlocks_document_ids": [
+            "DOC-MA001-001",
+            "DOC-MA001-004"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "obs_residue",
+      "label": "残留物分析",
+      "layer": "material",
+      "cost": 120,
+      "variants": [
+        {
+          "summary": "材質・残留物層を確定",
+          "findings": [
+            "補修材に現代の工業接着剤を検出",
+            "鏡面から有機性残留物を検出",
+            "銀合金部分は推定年代と矛盾しない"
+          ],
+          "hazard_tags": [
+            "organic_residue_unknown"
+          ],
+          "unlocks_document_ids": [
+            "DOC-MA001-004",
+            "DOC-MA001-008"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "obs_resonance",
+      "label": "共鳴試験",
+      "layer": "anomalous",
+      "cost": 180,
+      "variants": [
+        {
+          "summary": "限定条件下の認知干渉を確定",
+          "findings": [
+            "鏡面を90秒以上直視した観察者に既視記憶が混入",
+            "遮光すると反応が停止",
+            "室温が1.8度低下",
+            "同条件2回目でも弱い再現を確認"
+          ],
+          "hazard_tags": [
+            "memory_intrusion",
+            "solo_viewing_risk"
+          ],
+          "unlocks_document_ids": [
+            "DOC-MA001-005",
+            "DOC-MA001-006",
+            "DOC-MA001-007"
+          ]
+        }
+      ]
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "hyp_memory_relic",
+      "label": "過去の所有者の記憶を保持している"
+    },
+    {
+      "id": "hyp_chemical_hallucination",
+      "label": "特定人物に幻覚を起こす化学処理がある"
+    },
+    {
+      "id": "hyp_late_replica_anomaly",
+      "label": "後世の模造・修復品だが別の異常を帯びている"
+    }
+  ],
+  "documents": [
+    {
+      "id": "DOC-MA001-001",
+      "title": "北部旧領祭具目録・第3版",
+      "source_type": "学術目録",
+      "relevance": "高",
+      "age": "38年前",
+      "copy_state": "写し",
+      "missing": [
+        "図版2点"
+      ],
+      "tags": [
+        "鏡",
+        "祭祀",
+        "北部旧領",
+        "民俗資料",
+        "記憶"
+      ],
+      "content_variants": [
+        {
+          "excerpts": [
+            {
+              "excerpt_id": "EX-MA001-001A",
+              "location": "第4章2節",
+              "text": "灰白色の鏡は、死者の記憶を家系へ留める北部旧領の祭具として記録される。",
+              "diagnosis_tags": [
+                "secondary_source",
+                "missing_figure"
+              ]
+            },
+            {
+              "excerpt_id": "EX-MA001-001B",
+              "location": "注記17",
+              "text": "同名の鏡は80年前の火災で破壊され、破片のみが回収されたという。",
+              "diagnosis_tags": [
+                "secondary_source",
+                "destruction_claim"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DOC-MA001-002",
+      "title": "帝国奇物競売録・第十二冊",
+      "source_type": "取引記録",
+      "relevance": "高",
+      "age": "45年前",
+      "copy_state": "原簿複写",
+      "missing": [
+        "落札者名"
+      ],
+      "tags": [
+        "鏡",
+        "取引記録",
+        "北部旧領",
+        "所有者",
+        "反射"
+      ],
+      "content_variants": [
+        {
+          "excerpts": [
+            {
+              "excerpt_id": "EX-MA001-002A",
+              "location": "ロット309",
+              "text": "灰白色の祭祀鏡。銀合金、黒色鏡面。45年前の競売で落札された。",
+              "diagnosis_tags": [
+                "independent_record",
+                "redacted_owner"
+              ]
+            },
+            {
+              "excerpt_id": "EX-MA001-002B",
+              "location": "苦情追記",
+              "text": "落札後、所有者は鏡に見覚えのない幼少期が映ると訴えた。",
+              "diagnosis_tags": [
+                "post_sale_report",
+                "measurement_missing"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DOC-MA001-003",
+      "title": "黒羽家『守護鏡由来覚書』",
+      "source_type": "家系記録",
+      "relevance": "高",
+      "age": "年代不詳",
+      "copy_state": "出品者提供",
+      "missing": [
+        "原本検証"
+      ],
+      "tags": [
+        "鏡",
+        "祭祀",
+        "家系記録",
+        "所有者",
+        "守護"
+      ],
+      "content_variants": [
+        {
+          "excerpts": [
+            {
+              "excerpt_id": "EX-MA001-003A",
+              "location": "冒頭",
+              "text": "この鏡は代々我が家を不浄から守り、祖先の教えを映す真正の守護具である。",
+              "diagnosis_tags": [
+                "interested_party",
+                "authenticity_claim"
+              ]
+            },
+            {
+              "excerpt_id": "EX-MA001-003B",
+              "location": "末尾追記",
+              "text": "鏡が人を害した記録は一度もなく、封印や使用制限を要しない。",
+              "diagnosis_tags": [
+                "interested_party",
+                "absolute_safety_claim"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DOC-MA001-004",
+      "title": "クライン修復工房・請求書控",
+      "source_type": "修復記録",
+      "relevance": "高",
+      "age": "12年前",
+      "copy_state": "原本",
+      "missing": [],
+      "tags": [
+        "鏡",
+        "修復",
+        "取引記録",
+        "材質",
+        "現代"
+      ],
+      "content_variants": [
+        {
+          "excerpts": [
+            {
+              "excerpt_id": "EX-MA001-004A",
+              "location": "作業項目3",
+              "text": "鏡背の亀裂へ現代製アクリル系エポキシ樹脂45gを充填した。",
+              "diagnosis_tags": [
+                "primary_record",
+                "measured_amount"
+              ]
+            },
+            {
+              "excerpt_id": "EX-MA001-004B",
+              "location": "作業備考",
+              "text": "補修前から裏面刻印は意図的に削られており、由来を示す文字は確認不能だった。",
+              "diagnosis_tags": [
+                "primary_record",
+                "provenance_gap"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DOC-MA001-005",
+      "title": "北部収蔵庫・夜間事故報告17-B",
+      "source_type": "事故報告",
+      "relevance": "高",
+      "age": "44年前",
+      "copy_state": "認証写し",
+      "missing": [
+        "添付写真"
+      ],
+      "tags": [
+        "鏡",
+        "事故報告",
+        "記憶",
+        "反射",
+        "危険"
+      ],
+      "content_variants": [
+        {
+          "excerpts": [
+            {
+              "excerpt_id": "EX-MA001-005A",
+              "location": "所見2",
+              "text": "単独で鏡を監視した職員3名が、自分のものではない同一の誕生日の記憶を報告した。",
+              "diagnosis_tags": [
+                "multiple_witnesses",
+                "conditions_partial"
+              ]
+            },
+            {
+              "excerpt_id": "EX-MA001-005B",
+              "location": "対策欄",
+              "text": "鏡面を暗色布で覆うと証言された像は消失し、再発も停止した。",
+              "diagnosis_tags": [
+                "intervention_record",
+                "no_raw_data"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DOC-MA001-006",
+      "title": "個人記録『冬季手記』",
+      "source_type": "私的日記",
+      "relevance": "中",
+      "age": "46年前",
+      "copy_state": "写本",
+      "missing": [
+        "作成日",
+        "原本"
+      ],
+      "tags": [
+        "鏡",
+        "日記",
+        "所有者",
+        "記憶",
+        "一次証言"
+      ],
+      "content_variants": [
+        {
+          "excerpts": [
+            {
+              "excerpt_id": "EX-MA001-006A",
+              "location": "冬・頁不明",
+              "text": "父が死んだ後も、鏡面に父ではなく、私の知らない子供時代が映り続けた。",
+              "diagnosis_tags": [
+                "first_person",
+                "date_missing"
+              ]
+            },
+            {
+              "excerpt_id": "EX-MA001-006B",
+              "location": "余白",
+              "text": "鏡を隣家へ預けても像は私の夢に現れた。所有者が誰なのか、鏡は理解していない。",
+              "diagnosis_tags": [
+                "first_person",
+                "unverified_custody"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DOC-MA001-007",
+      "title": "北州夕報『呪鏡が三人の過去を盗む』",
+      "source_type": "新聞記事",
+      "relevance": "中",
+      "age": "44年前",
+      "copy_state": "縮刷版",
+      "missing": [
+        "取材録音"
+      ],
+      "tags": [
+        "鏡",
+        "新聞",
+        "事故",
+        "記憶",
+        "誇張"
+      ],
+      "content_variants": [
+        {
+          "excerpts": [
+            {
+              "excerpt_id": "EX-MA001-007A",
+              "location": "一面見出し",
+              "text": "呪われた鏡が監視員三人の記憶を奪い、別人の人生を植え付けた。",
+              "diagnosis_tags": [
+                "sensational",
+                "secondary_report"
+              ]
+            },
+            {
+              "excerpt_id": "EX-MA001-007B",
+              "location": "訂正欄",
+              "text": "収蔵庫は『記憶喪失は確認されず、一時的な既視感のみ』と発表した。",
+              "diagnosis_tags": [
+                "correction",
+                "institution_statement"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DOC-MA001-008",
+      "title": "灰白色鏡模造品・鑑定報告K-19",
+      "source_type": "類似品鑑定",
+      "relevance": "中",
+      "age": "9年前",
+      "copy_state": "電子写し",
+      "missing": [
+        "比較対象の所在"
+      ],
+      "tags": [
+        "鏡",
+        "鑑定",
+        "模造品",
+        "材質",
+        "化学"
+      ],
+      "content_variants": [
+        {
+          "excerpts": [
+            {
+              "excerpt_id": "EX-MA001-008A",
+              "location": "材質分析",
+              "text": "K-19は現代銀メッキと鎮静性植物樹脂で作られた模造品であり、異常共鳴を示さなかった。",
+              "diagnosis_tags": [
+                "measured",
+                "different_object_possible"
+              ]
+            },
+            {
+              "excerpt_id": "EX-MA001-008B",
+              "location": "比較所見",
+              "text": "真正品とされる資料写真には裏面刻印があるが、K-19には刻印も削除痕もない。",
+              "diagnosis_tags": [
+                "image_comparison",
+                "source_image_missing"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "contradictions": [
+    {
+      "id": "conf_destroyed_vs_auctioned",
+      "label": "破壊記録と後年の競売記録",
+      "required_excerpt_ids": [
+        "EX-MA001-001B",
+        "EX-MA001-002A"
+      ],
+      "allowed_causes": [
+        "別個体",
+        "年代の誤記",
+        "模造品",
+        "意図的改竄",
+        "名称の混同",
+        "未解決"
+      ],
+      "followup_actions": [
+        "過去の出品写真を調べる",
+        "修復記録を検索する",
+        "専門家へ照会する"
+      ]
+    },
+    {
+      "id": "conf_guardian_vs_modern_repair",
+      "label": "真正守護具の主張と現代補修",
+      "required_excerpt_ids": [
+        "EX-MA001-003A",
+        "EX-MA001-004A"
+      ],
+      "allowed_causes": [
+        "部分修復",
+        "模造品",
+        "出品者の誤認",
+        "意図的改竄",
+        "未解決"
+      ],
+      "followup_actions": [
+        "材質年代を分析する",
+        "出品者へ追加質問する"
+      ]
+    },
+    {
+      "id": "conf_safe_vs_incident",
+      "label": "安全主張と収蔵庫事故",
+      "required_excerpt_ids": [
+        "EX-MA001-003B",
+        "EX-MA001-005A"
+      ],
+      "allowed_causes": [
+        "別個体",
+        "条件依存",
+        "家系記録の隠蔽",
+        "事故報告の誤認",
+        "未解決"
+      ],
+      "followup_actions": [
+        "共鳴試験を行う",
+        "事故当事者へ照会する",
+        "危険等級を暫定化する"
+      ]
+    }
+  ],
+  "contractors": [
+    {
+      "id": "contractor_folklorist",
+      "name": "民俗資料研究者・鷺森",
+      "base_cost": 500,
+      "duration": 3,
+      "capabilities": [
+        "来歴",
+        "類似祭具",
+        "古文書"
+      ],
+      "limitations": [
+        "呪的反応試験不可",
+        "違法品拒否"
+      ],
+      "report_quality": "complete",
+      "relationship_id": "relation_folklorist"
+    },
+    {
+      "id": "contractor_anomaly_analyst",
+      "name": "非正規現象分析者・零号室",
+      "base_cost": 800,
+      "duration": 1,
+      "capabilities": [
+        "共鳴実験",
+        "危険性分析"
+      ],
+      "limitations": [
+        "来歴調査が粗い",
+        "標本損傷",
+        "報告欠損"
+      ],
+      "report_quality": "anomalous",
+      "relationship_id": "relation_anomaly_analyst"
+    }
+  ],
+  "custody_controls": [
+    {
+      "id": "control_seal",
+      "label": "封印シリアルを登録",
+      "cost": 150,
+      "detects": [
+        "seal_mismatch"
+      ]
+    },
+    {
+      "id": "control_weight",
+      "label": "重量を事前記録",
+      "cost": 100,
+      "detects": [
+        "anomaly_weight_loss"
+      ]
+    },
+    {
+      "id": "control_sample",
+      "label": "鏡面残留物の対照試料を保存",
+      "cost": 200,
+      "detects": [
+        "sample_mismatch"
+      ]
+    }
+  ],
+  "report_anomalies": [
+    {
+      "id": "anomaly_weight_loss",
+      "label": "標本重量の差",
+      "expected": "2.184 kg",
+      "actual": "2.139 kg",
+      "delta": "-45 g",
+      "detected_by": [
+        "control_weight"
+      ]
+    },
+    {
+      "id": "anomaly_raw_gap",
+      "label": "生データ欠損",
+      "expected": "共鳴試験全時間帯のログ",
+      "actual": "異常反応なしと記載された時間帯が空白",
+      "detected_by": [
+        "require_raw_data"
+      ]
+    }
+  ],
+  "review_questions": [
+    {
+      "id": "review_provenance",
+      "question": "出品者の家系記録以外に、来歴を示す独立資料はありますか",
+      "answers": [
+        {
+          "id": "cite_auction",
+          "requires_source_ids": [
+            "DOC-MA001-002"
+          ],
+          "effect": "pass"
+        },
+        {
+          "id": "mark_unconfirmed",
+          "listing_patch": {
+            "authenticity": "来歴未確認"
+          },
+          "effect": "pass"
+        }
+      ]
+    },
+    {
+      "id": "review_hazard",
+      "question": "共鳴試験の結果を通常使用時にも適用できる根拠はありますか",
+      "answers": [
+        {
+          "id": "cite_resonance",
+          "requires_observation_ids": [
+            "OBS-MA001-RESONANCE"
+          ],
+          "effect": "pass"
+        },
+        {
+          "id": "narrow_scope",
+          "listing_patch": {
+            "hazard_disclosure": "限定条件下で認知異常を観測",
+            "restrictions": [
+              "単独観察禁止",
+              "長時間直視禁止",
+              "遮光保管"
+            ]
+          },
+          "effect": "pass"
+        }
+      ]
+    },
+    {
+      "id": "review_commission",
+      "question": "返却時の重量差を解決せず、委託報告を採用するのですか",
+      "answers": [
+        {
+          "id": "cite_audit",
+          "requires_detected_anomalies": [
+            "anomaly_weight_loss"
+          ],
+          "effect": "pass"
+        },
+        {
+          "id": "exclude_report",
+          "effect": "exclude_commission_and_pass"
+        },
+        {
+          "id": "hold_for_retest",
+          "effect": "hold"
+        }
+      ]
+    }
+  ],
+  "dispositions": [
+    {
+      "id": "normal_listing",
+      "label": "通常出品",
+      "requires_gate": true
+    },
+    {
+      "id": "conditional_listing",
+      "label": "条件付き出品",
+      "requires_gate": true
+    },
+    {
+      "id": "research_hold",
+      "label": "研究保留",
+      "requires_gate": false
+    },
+    {
+      "id": "reject_return",
+      "label": "出品拒否・返却",
+      "requires_gate": false
+    }
+  ],
+  "sales_restriction_definitions": [
+    {
+      "id": "authorized_buyer_only",
+      "label": "認可購入者のみ",
+      "requires_bidder_tags": [
+        "authorized_buyer"
+      ]
+    },
+    {
+      "id": "licensed_research_only",
+      "label": "認可研究機関のみ",
+      "requires_bidder_tags": [
+        "licensed_research_institution"
+      ]
+    },
+    {
+      "id": "no_anonymous_bidders",
+      "label": "匿名入札者を除外",
+      "prohibits_bidder_tags": [
+        "anonymous"
+      ]
+    }
+  ],
+  "bidders": [
+    {
+      "id": "bidder_collector",
+      "name": "旧家蒐集家",
+      "qualification_tags": [
+        "authorized_buyer",
+        "private_collector"
+      ],
+      "base_bid": 1100,
+      "weights": {
+        "provenance": 450,
+        "hazard_disclosed": -100,
+        "conditional": -250
+      }
+    },
+    {
+      "id": "bidder_researcher",
+      "name": "現象研究機関",
+      "qualification_tags": [
+        "authorized_buyer",
+        "licensed_research_institution",
+        "hazardous_artifact_facility"
+      ],
+      "base_bid": 900,
+      "weights": {
+        "evidence": 140,
+        "hazard_disclosed": 250,
+        "conditional": 100
+      }
+    },
+    {
+      "id": "bidder_unknown",
+      "name": "名義不明の顧客",
+      "qualification_tags": [
+        "anonymous"
+      ],
+      "base_bid": 700,
+      "weights": {
+        "withheld_unknowns": 500,
+        "memory_claim": 350,
+        "conditional": -50
+      }
+    }
+  ]
+}

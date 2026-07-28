@@ -1,0 +1,12 @@
+# Godot engine build & import artifacts
+.godot/
+*.import
+
+# Ephemeral testing and tooling directories
+tmp/
+.playwright-mcp/
+*.tmp
+*.log
+
+# Excluded projects (relocated externally)
+projects/

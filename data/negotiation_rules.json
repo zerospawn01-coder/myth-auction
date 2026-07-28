@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "source_design": "project_manuals/multi_agent_negotiation_design.md",
+  "weights": {
+    "base_priority": 1.0,
+    "severity": 2.0,
+    "confidence": 1.0,
+    "collapse_urgency": 2.5,
+    "scenario_progress": 0.75,
+    "ledger_conflict": 2.0,
+    "cost_penalty": 1.0,
+    "cooldown_penalty": 20.0,
+    "cast_manager_direct_write_penalty": 1000.0
+  },
+  "tie_threshold": 0.5,
+  "collapse_timer_window": 100,
+  "narrative_templates": {
+    "approved": "傍受された通信記録: ゲート裁定を確定。",
+    "escalated": "傍受された通信記録: データ干渉が発生中。監査官裁定を要求。",
+    "cast_trigger": "傍受された通信記録: CastManager警告を受理。優先度注入を実行。",
+    "rejected": "傍受された通信記録: 統治制約により提案を却下。",
+    "none": "傍受された通信記録: 実行可能な提案なし。"
+  },
+  "cast_manager_triggers": {
+    "flag_contradiction": [
+      {
+        "agent_id": "Director",
+        "prompt_variable": "priority_coverup",
+        "delta": 20,
+        "ttl_turns": 1
+      },
+      {
+        "agent_id": "Engineer",
+        "prompt_variable": "priority_repair",
+        "delta": 25,
+        "ttl_turns": 1
+      }
+    ],
+    "request_repair": [
+      {
+        "agent_id": "Engineer",
+        "prompt_variable": "priority_repair",
+        "delta": 30,
+        "ttl_turns": 1
+      }
+    ],
+    "request_coverup": [
+      {
+        "agent_id": "Director",
+        "prompt_variable": "priority_coverup",
+        "delta": 30,
+        "ttl_turns": 1
+      }
+    ]
+  }
+}

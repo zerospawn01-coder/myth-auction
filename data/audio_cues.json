@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "backend": "procedural_placeholder",
+  "future_backend": "CRIWARE_ADX",
+  "source_design": "project_manuals/aether_fountain_audio_design.md",
+  "parameters": [
+    {
+      "id": "Risk",
+      "min": 0,
+      "max": 100,
+      "description": "Controls gate scan speed, mission result tension, and future ADX AISAC risk modulation."
+    },
+    {
+      "id": "Corruption",
+      "min": 0,
+      "max": 100,
+      "description": "Controls lab ambience instability and future ADX AISAC corruption modulation."
+    }
+  ],
+  "aliases": {
+    "cue_lab_ambience": "cue_lab_ambience_loop"
+  },
+  "cues": [
+    {
+      "id": "cue_ui_select",
+      "category": "UI",
+      "placeholder_path": "res://assets/audio/placeholders/cue_ui_select.wav",
+      "description": "Button selection."
+    },
+    {
+      "id": "cue_ui_confirm",
+      "category": "UI",
+      "placeholder_path": "res://assets/audio/placeholders/cue_ui_confirm.wav",
+      "description": "Action confirmation."
+    },
+    {
+      "id": "cue_ui_cancel",
+      "category": "UI",
+      "placeholder_path": "res://assets/audio/placeholders/cue_ui_cancel.wav",
+      "description": "Action cancel, retained from the source WebAudio app."
+    },
+    {
+      "id": "cue_ui_error",
+      "category": "UI",
+      "placeholder_path": "res://assets/audio/placeholders/cue_ui_error.wav",
+      "description": "Resource shortage or invalid operation."
+    },
+    {
+      "id": "cue_ui_tab_switch",
+      "category": "UI",
+      "placeholder_path": "res://assets/audio/placeholders/cue_ui_tab_switch.wav",
+      "description": "Screen transition."
+    },
+    {
+      "id": "cue_gene_mixer_start",
+      "category": "Device",
+      "placeholder_path": "res://assets/audio/placeholders/cue_gene_mixer_start.wav",
+      "description": "Gene mixer startup."
+    },
+    {
+      "id": "cue_gene_mixer_loop",
+      "category": "Device",
+      "placeholder_path": "res://assets/audio/placeholders/cue_gene_mixer_loop.wav",
+      "description": "Gene mixer loop."
+    },
+    {
+      "id": "cue_gene_mixer_complete",
+      "category": "Device",
+      "placeholder_path": "res://assets/audio/placeholders/cue_gene_mixer_complete.wav",
+      "description": "Gene sample generation complete."
+    },
+    {
+      "id": "cue_extractor_start",
+      "category": "Device",
+      "placeholder_path": "res://assets/audio/placeholders/cue_extractor_start.wav",
+      "description": "Extractor startup."
+    },
+    {
+      "id": "cue_extractor_complete",
+      "category": "Device",
+      "placeholder_path": "res://assets/audio/placeholders/cue_extractor_complete.wav",
+      "description": "Extractor completion."
+    },
+    {
+      "id": "cue_gate_scan",
+      "category": "Gate",
+      "placeholder_path": "res://assets/audio/placeholders/cue_gate_scan.wav",
+      "description": "Gate scanner loop."
+    },
+    {
+      "id": "cue_gate_approve",
+      "category": "Gate",
+      "placeholder_path": "res://assets/audio/placeholders/cue_gate_approve.wav",
+      "description": "Gate approval."
+    },
+    {
+      "id": "cue_gate_reject",
+      "category": "Gate",
+      "placeholder_path": "res://assets/audio/placeholders/cue_gate_reject.wav",
+      "description": "Gate rejection."
+    },
+    {
+      "id": "cue_gate_fail_closed",
+      "category": "Gate",
+      "placeholder_path": "res://assets/audio/placeholders/cue_gate_fail_closed.wav",
+      "description": "Emergency gate fail-closed."
+    },
+    {
+      "id": "cue_ledger_write",
+      "category": "Gate",
+      "placeholder_path": "res://assets/audio/placeholders/cue_ledger_write.wav",
+      "description": "Immutable ledger write stamp."
+    },
+    {
+      "id": "cue_ledger_warning",
+      "category": "Gate",
+      "placeholder_path": "res://assets/audio/placeholders/cue_ledger_warning.wav",
+      "description": "Ledger warning, retained from the source WebAudio app."
+    },
+    {
+      "id": "cue_bioloid_birth",
+      "category": "Bioroid",
+      "placeholder_path": "res://assets/audio/placeholders/cue_bioloid_birth.wav",
+      "description": "Bioroid birth."
+    },
+    {
+      "id": "cue_bioloid_corrupt",
+      "category": "Bioroid",
+      "placeholder_path": "res://assets/audio/placeholders/cue_bioloid_corrupt.wav",
+      "description": "Corruption increase."
+    },
+    {
+      "id": "cue_bioloid_accident",
+      "category": "Bioroid",
+      "placeholder_path": "res://assets/audio/placeholders/cue_bioloid_accident.wav",
+      "description": "Runaway accident."
+    },
+    {
+      "id": "cue_bioloid_lost",
+      "category": "Bioroid",
+      "placeholder_path": "res://assets/audio/placeholders/cue_bioloid_lost.wav",
+      "description": "Bioroid lost, retained from the source WebAudio app."
+    },
+    {
+      "id": "cue_mission_dispatch",
+      "category": "Mission",
+      "placeholder_path": "res://assets/audio/placeholders/cue_mission_dispatch.wav",
+      "description": "Mission dispatch."
+    },
+    {
+      "id": "cue_mission_result",
+      "category": "Mission",
+      "placeholder_path": "res://assets/audio/placeholders/cue_mission_result.wav",
+      "description": "Mission result."
+    },
+    {
+      "id": "cue_lab_ambience_loop",
+      "category": "Ambience",
+      "placeholder_path": "res://assets/audio/placeholders/cue_lab_ambience_loop.wav",
+      "description": "Corruption-reactive lab ambience loop."
+    }
+  ]
+}

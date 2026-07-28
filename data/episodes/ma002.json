@@ -1,0 +1,341 @@
+{
+  "schema_version": 2,
+  "package_version": "2.0.0",
+  "package_id": "myth_auction.ma002",
+  "determinism": {
+    "world_seed": "MYTH-AUCTION-MA002-RETURN-LEDGER",
+    "version": 1
+  },
+  "case_metadata": {
+    "case_id": "episode_ma002",
+    "case_kind": "research_case",
+    "title_key": "case.ma002.title",
+    "short_id": "MA-002",
+    "tags": ["research_case", "non_auction", "public_interest"],
+    "relationships": [
+      {"id": "relation_archivist", "axes": {"trust": 0, "obligation": 0}},
+      {"id": "relation_handwriting_analyst", "axes": {"trust": 0, "obligation": 0}},
+      {"id": "relation_civic_observer", "axes": {"trust": 0, "obligation": 0}},
+      {"id": "lender_north_annex", "axes": {"trust": 0, "obligation": 0}}
+    ]
+  },
+  "lifecycle": {
+    "initial_status": "UNRECEIVED",
+    "statuses": [
+      {"id": "UNRECEIVED", "label_key": "status.unreceived", "terminal": false},
+      {"id": "RECEIVED", "label_key": "status.received", "terminal": false},
+      {"id": "HELD", "label_key": "status.held", "terminal": false},
+      {"id": "PUBLISHED", "label_key": "status.published", "terminal": true},
+      {"id": "DONATED", "label_key": "status.donated", "terminal": true},
+      {"id": "RETURNED", "label_key": "status.returned", "terminal": true}
+    ],
+    "transitions": [
+      {
+        "id": "receive_case",
+        "action_id": "RECEIVE",
+        "label_key": "action.receive",
+        "from": ["UNRECEIVED"],
+        "to": "RECEIVED",
+        "requires": {"predicate": "lot_status_is", "value": "UNRECEIVED"},
+        "effects": [{"op": "SET_LOT_STATUS", "value": "RECEIVED"}]
+      }
+    ]
+  },
+  "action_definitions": [],
+  "initial_state": {
+    "lot": {
+      "lot_id": "MA-002",
+      "category": "未貸出台帳",
+      "materials": ["灰色革", "綴じ糸", "図書館用紙"],
+      "seller_id": "lender_north_annex",
+      "seller_claim": "閉鎖図書館から回収された返却記録",
+      "provenance": "北区分館・閉鎖棚",
+      "appearance": "最終頁だけ紙齢が一定しない",
+      "hazard": "個人情報改変の疑い",
+      "initial_unknowns": ["追記者", "記録の対象範囲", "現実の貸出履歴への影響", "安全な公開形式"]
+    },
+    "listing": {
+      "title": "未貸出者の返却台帳",
+      "authenticity": "記録媒体として確認済み",
+      "estimated_period": "複数年代",
+      "confirmed_phenomena": [],
+      "hazard_disclosure": "個人情報との同期範囲は未確認",
+      "unknowns": ["追記者", "対象範囲", "現実記録への影響", "安全な公開形式"],
+      "restrictions": ["原本の個人閲覧禁止"],
+      "sales_restrictions": [],
+      "sales_restriction_ids": []
+    },
+    "resources": {"gold": 1800},
+    "reputations": {"market": 0, "research": 0, "safety": 0},
+    "relationships": {
+      "relation_archivist": {"trust": 0, "obligation": 0},
+      "relation_handwriting_analyst": {"trust": 0, "obligation": 0},
+      "relation_civic_observer": {"trust": 0, "obligation": 0},
+      "lender_north_annex": {"trust": 0, "obligation": 0}
+    }
+  },
+  "runtime": {
+    "id_prefixes": {
+      "observation": "OBS-MA002",
+      "evidence": "EVID",
+      "commission": "COM-MA002",
+      "report": "REPORT-MA002",
+      "conflict": "CONFLICT"
+    }
+  },
+  "source_search": {"mode": "ANY_TAG"},
+  "observations": [
+    {
+      "id": "obs_page_growth",
+      "label_key": "observation.page_growth",
+      "action_id": "OBSERVE",
+      "observation_id": "OBS-MA002-PAGE-GROWTH",
+      "layer": "temporal",
+      "cost": {"resource_id": "gold", "amount": 0},
+      "output_evidence_candidate_ids": [],
+      "requires": {"predicate": "lot_status_is", "value": "RECEIVED"},
+      "effects": [],
+      "variants": [
+        {
+          "summary": "閉架後の頁増加を確定",
+          "findings": ["施錠後19分で最終頁が1枚増えた", "インクは乾燥済みの状態で出現した", "追記された氏名は現行利用者名簿に存在しない"],
+          "hazard_tags": ["identity_recording"],
+          "unlocks_document_ids": ["DOC-MA002-001"]
+        }
+      ]
+    },
+    {
+      "id": "obs_catalog_correlation",
+      "label_key": "observation.catalog_correlation",
+      "action_id": "OBSERVE",
+      "observation_id": "OBS-MA002-CATALOG-CORRELATION",
+      "layer": "record_link",
+      "cost": {"resource_id": "gold", "amount": 90},
+      "output_evidence_candidate_ids": [],
+      "requires": {"predicate": "lot_status_is", "value": "RECEIVED"},
+      "effects": [],
+      "variants": [
+        {
+          "summary": "公的目録との非対称な同期を確定",
+          "findings": ["台帳の追記後にだけ電子目録へ返却履歴が現れる", "電子目録を訂正しても台帳側は変化しない", "人物名を伏せた複製頁では同期が起きない"],
+          "hazard_tags": ["archive_writeback", "personal_name_trigger"],
+          "unlocks_document_ids": ["DOC-MA002-002"]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "DOC-MA002-001",
+      "label_key": "source.ma002.access_log",
+      "source_kind": "access_log",
+      "source_type": "閉架入退室記録",
+      "relevance": "高",
+      "age": "現在",
+      "copy_state": "署名済み電子記録",
+      "missing": [],
+      "tags": ["台帳", "閉架", "時間", "追記"],
+      "visibility": "internal",
+      "content_variants": [
+        {
+          "excerpts": [
+            {"excerpt_id": "EX-MA002-001A", "location": "03:00-04:00", "text": "閉架室への入退室はゼロ件。03:19に頁数センサーだけが214から215へ変化した。", "diagnosis_tags": ["primary_record", "instrumented"]},
+            {"excerpt_id": "EX-MA002-001B", "location": "監督者注記", "text": "映像上の接触はないが、追加頁のインクは採取時点ですでに数年相当の酸化を示した。", "diagnosis_tags": ["primary_record", "age_mismatch"]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DOC-MA002-002",
+      "label_key": "source.ma002.catalog_diff",
+      "source_kind": "public_record",
+      "source_type": "図書目録差分記録",
+      "relevance": "高",
+      "age": "現在",
+      "copy_state": "監査用複製",
+      "missing": ["原本の利用者名"],
+      "tags": ["台帳", "目録", "返却", "個人名"],
+      "visibility": "restricted",
+      "content_variants": [
+        {
+          "excerpts": [
+            {"excerpt_id": "EX-MA002-002A", "location": "差分17", "text": "紙台帳への追記から平均11秒後、存在しなかった貸出と返却の組が公的目録へ追加された。", "diagnosis_tags": ["replicated_correlation", "directional_link"]},
+            {"excerpt_id": "EX-MA002-002B", "location": "匿名化試験", "text": "固有名を黒塗りした複製頁では、公的目録への書き戻しは観測されなかった。", "diagnosis_tags": ["intervention_record", "name_dependency"]}
+          ]
+        }
+      ]
+    }
+  ],
+  "evidence_candidates": [
+    {"id": "EVID-EX-MA002-001A", "label_key": "evidence.ma002.001a", "source_id": "DOC-MA002-001", "excerpt_id": "EX-MA002-001A", "initial_state": "candidate", "visibility": "internal", "tags": ["primary_record", "instrumented"]},
+    {"id": "EVID-EX-MA002-001B", "label_key": "evidence.ma002.001b", "source_id": "DOC-MA002-001", "excerpt_id": "EX-MA002-001B", "initial_state": "candidate", "visibility": "internal", "tags": ["primary_record", "age_mismatch"]},
+    {"id": "EVID-EX-MA002-002A", "label_key": "evidence.ma002.002a", "source_id": "DOC-MA002-002", "excerpt_id": "EX-MA002-002A", "initial_state": "candidate", "visibility": "restricted", "tags": ["replicated_correlation", "directional_link"]},
+    {"id": "EVID-EX-MA002-002B", "label_key": "evidence.ma002.002b", "source_id": "DOC-MA002-002", "excerpt_id": "EX-MA002-002B", "initial_state": "candidate", "visibility": "restricted", "tags": ["intervention_record", "name_dependency"]}
+  ],
+  "hypotheses": [
+    {
+      "id": "hyp_ledger_writes_history",
+      "label_key": "hypothesis.ledger_writes_history",
+      "evidence_candidate_ids": ["EVID-EX-MA002-001A", "EVID-EX-MA002-002A", "EVID-EX-MA002-002B"]
+    }
+  ],
+  "contradictions": [
+    {
+      "id": "conf_old_ink_new_event",
+      "label_key": "contradiction.old_ink_new_event",
+      "hypothesis_ids": ["hyp_ledger_writes_history"],
+      "evidence_candidate_ids": ["EVID-EX-MA002-001A", "EVID-EX-MA002-001B"],
+      "required_excerpt_ids": ["EX-MA002-001A", "EX-MA002-001B"],
+      "allowed_causes": ["時間逆行", "事前記録", "測定誤差", "未解決"],
+      "followup_actions": ["紙とインクを年代測定する", "閉架前の頁画像を照合する"]
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim_public_record_risk",
+      "label_key": "claim.public_record_risk",
+      "initial_status": "draft",
+      "visibility": "private",
+      "hypothesis_ids": ["hyp_ledger_writes_history"],
+      "allowed_evidence_candidate_ids": ["EVID-EX-MA002-001A", "EVID-EX-MA002-001B", "EVID-EX-MA002-002A", "EVID-EX-MA002-002B"],
+      "submission_requires": {"predicate": "claim_evidence_count_compare", "compare": "GTE", "value": 1}
+    }
+  ],
+  "contractors": [
+    {"id": "contractor_archivist", "label_key": "contractor.archivist", "base_cost": 260, "duration": 2, "capabilities": ["閉架記録", "図書館史"], "limitations": ["個人名の外部持出不可"], "report_quality": "complete", "report_profile_id": "report_publication_review", "relationship_id": "relation_archivist", "emblem": {"base_shape_id": "shape_research", "primary_symbol_id": "symbol_library", "palette_id": "palette_civic", "organization_mark_id": "mark_public", "risk_tier": "low"}},
+    {"id": "contractor_handwriting", "label_key": "contractor.handwriting", "base_cost": 310, "duration": 1, "capabilities": ["筆跡比較", "インク年代"], "limitations": ["現実改変の評価不可"], "report_quality": "complete", "report_profile_id": "report_publication_review", "relationship_id": "relation_handwriting_analyst", "emblem": {"base_shape_id": "shape_research", "primary_symbol_id": "symbol_document", "palette_id": "palette_academic", "organization_mark_id": "mark_private", "risk_tier": "low"}},
+    {"id": "contractor_civic_observer", "label_key": "contractor.civic_observer", "base_cost": 180, "duration": 3, "capabilities": ["公益審査", "匿名化設計"], "limitations": ["原本実験不可"], "report_quality": "complete", "report_profile_id": "report_publication_review", "relationship_id": "relation_civic_observer", "emblem": {"base_shape_id": "shape_research", "primary_symbol_id": "symbol_inspection", "palette_id": "palette_public", "organization_mark_id": "mark_public", "risk_tier": "low"}}
+  ],
+  "audit_reports": [
+    {
+      "id": "report_publication_review",
+      "label_key": "report.publication_review",
+      "quality": "complete",
+      "report_quality": "complete",
+      "evidence_candidate_ids": [],
+      "anomalies": [],
+      "variants": [
+        {"id": "publication_default", "when_order": {}, "finding": "委託範囲を監査し、公開時は固有名を不可逆匿名化するよう勧告した。", "anomaly_ids": []}
+      ]
+    }
+  ],
+  "audit_actions": [],
+  "dispositions": [
+    {
+      "id": "retain_for_research",
+      "label_key": "disposition.retain",
+      "kind": "HOLD",
+      "terminal": false,
+      "permits": ["OBSERVE", "SEARCH", "RESEARCH", "COMMISSION", "REVIEW", "PUBLISH", "RETURN"],
+      "requires_gate": false,
+      "requires": {"predicate": "lot_status_is", "value": "RECEIVED"},
+      "effects": [{"op": "SET_LOT_STATUS", "value": "HELD"}]
+    },
+    {
+      "id": "publish_anonymized_findings",
+      "label_key": "disposition.publish",
+      "kind": "PUBLISH",
+      "terminal": true,
+      "permits": [],
+      "requires_gate": false,
+      "requires": {"any": [{"predicate": "lot_status_is", "value": "RECEIVED"}, {"predicate": "lot_status_is", "value": "HELD"}]},
+      "effects": [{"op": "SET_LOT_STATUS", "value": "PUBLISHED"}, {"op": "ADJUST_REPUTATION", "axis": "research", "delta": 2}]
+    },
+    {
+      "id": "donate_civic_archive",
+      "label_key": "disposition.donate",
+      "kind": "DONATE",
+      "terminal": true,
+      "permits": [],
+      "requires_gate": false,
+      "requires": {"predicate": "lot_status_is", "value": "RECEIVED"},
+      "effects": [{"op": "SET_LOT_STATUS", "value": "DONATED"}, {"op": "ADJUST_REPUTATION", "axis": "safety", "delta": 1}]
+    },
+    {
+      "id": "return_to_lender",
+      "label_key": "disposition.return",
+      "kind": "RETURN",
+      "terminal": true,
+      "permits": [],
+      "requires_gate": false,
+      "requires": {"predicate": "lot_status_is", "value": "RECEIVED"},
+      "effects": [{"op": "SET_LOT_STATUS", "value": "RETURNED"}]
+    }
+  ],
+  "buyer_profiles": [],
+  "bid_rules": {
+    "tie_breaker": "BUYER_ID_ASC",
+    "qualification_catalog": [],
+    "listing_restrictions": [],
+    "no_eligible_outcome": "NO_AUCTION_AVAILABLE",
+    "success_transition": "SOLD"
+  },
+  "content_packages": {
+    "default_locale": "ja",
+    "packages": [
+      {
+        "id": "ma002_ja",
+        "locale": "ja",
+        "strings": {
+          "case.ma002.title": "未貸出者の返却台帳",
+          "status.unreceived": "受領前",
+          "status.received": "受領済み",
+          "status.held": "研究保留",
+          "status.published": "匿名研究公開済み",
+          "status.donated": "公益資料庫へ寄贈済み",
+          "status.returned": "返却済み",
+          "action.receive": "案件を受領する",
+          "observation.page_growth": "閉架後の頁増加を観測",
+          "observation.catalog_correlation": "公的目録との同期を比較",
+          "source.ma002.access_log": "北区分館・閉架入退室記録",
+          "source.ma002.catalog_diff": "公的図書目録・差分監査記録",
+          "evidence.ma002.001a": "無入室時間帯の頁数変化",
+          "evidence.ma002.001b": "新規頁と古いインク酸化",
+          "evidence.ma002.002a": "台帳から公的目録への一方向同期",
+          "evidence.ma002.002b": "固有名を除くと同期が止まる",
+          "hypothesis.ledger_writes_history": "台帳への追記が公的な貸出履歴を書き換える",
+          "contradiction.old_ink_new_event": "新しい追記と古いインク年代",
+          "claim.public_record_risk": "台帳は固有名を介して公的記録へ干渉する",
+          "contractor.archivist": "閉架史料官・御厨",
+          "contractor.handwriting": "筆跡年代分析室・薄明",
+          "contractor.civic_observer": "市民記録監察人・二瀬",
+          "report.publication_review": "匿名公開適合性報告",
+          "disposition.retain": "原本を保持して研究を続ける",
+          "disposition.publish": "固有名を伏せて研究結果を公開する",
+          "disposition.donate": "原本を公益異常資料庫へ寄贈する",
+          "disposition.return": "閉鎖分館の管理者へ返却する",
+          "ui.screen.intake": "受領台帳",
+          "ui.screen.observation": "観察台",
+          "ui.screen.sources": "資料検索",
+          "ui.screen.research": "研究ボード",
+          "ui.screen.network": "人脈・委託",
+          "ui.screen.resolution": "公開・処分判断",
+          "facet.record": "記録種別",
+          "facet.record.ledger": "台帳",
+          "facet.effect": "作用",
+          "facet.effect.name": "個人名"
+        }
+      }
+    ]
+  },
+  "ui_presentation": {
+    "screen_order": ["intake", "observation", "sources", "research", "network", "resolution"],
+    "screens": [
+      {"id": "intake", "label_key": "ui.screen.intake", "collection": "case_metadata"},
+      {"id": "observation", "label_key": "ui.screen.observation", "collection": "observations"},
+      {"id": "sources", "label_key": "ui.screen.sources", "collection": "sources"},
+      {"id": "research", "label_key": "ui.screen.research", "collection": "hypotheses"},
+      {"id": "network", "label_key": "ui.screen.network", "collection": "contractors"},
+      {"id": "resolution", "label_key": "ui.screen.resolution", "collection": "dispositions"}
+    ],
+    "primary_resource_id": "gold",
+    "custody_controls": [],
+    "review_questions": [],
+    "audit_decisions": [],
+    "archive_facets": [
+      {"id": "record", "label_key": "facet.record", "options": [{"id": "ledger", "label_key": "facet.record.ledger", "tag_id": "台帳"}]},
+      {"id": "effect", "label_key": "facet.effect", "options": [{"id": "name", "label_key": "facet.effect.name", "tag_id": "個人名"}]}
+    ],
+    "confirmed_phenomena_rules": []
+  }
+}

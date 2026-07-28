@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "action_id": "inspect_relic",
+      "verb": "inspect",
+      "target_id": "relic_001",
+      "conditions": {
+        "target_tags": [
+          "artifact"
+        ],
+        "context_keys": [
+          "auditor_id"
+        ]
+      },
+      "metadata": {
+        "priority": 0
+      }
+    },
+    {
+      "action_id": "trade_relic",
+      "verb": "trade",
+      "target_id": "relic_001",
+      "collaborator_ids": [
+        "broker_01"
+      ],
+      "conditions": {
+        "context_values": {
+          "market_state": "open"
+        }
+      },
+      "metadata": {
+        "priority": 5
+      }
+    }
+  ]
+}

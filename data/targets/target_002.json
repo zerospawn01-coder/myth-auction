@@ -1,0 +1,23 @@
+{
+  "target_id": "target_002",
+  "target_type": "INFORMATION",
+  "display_name": "破棄された観測記録",
+  "description": "黒塗りの文書。何かの実験データらしい。",
+  "tags": [
+    "document",
+    "redacted"
+  ],
+  "state": {
+    "unknown_level": 100
+  },
+  "action_definitions": [
+    {
+      "action_id": "act_obs_002",
+      "verb": "OBSERVE",
+      "metadata": {
+        "label": "解読を試みる",
+        "description": "文書の黒塗り部分の解読を試みる。"
+      }
+    }
+  ]
+}

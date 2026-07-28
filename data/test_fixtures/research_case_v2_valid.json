@@ -1,0 +1,216 @@
+{
+  "schema_version": 2,
+  "package_version": "2.0.0",
+  "case_metadata": {
+    "case_id": "fixture_non_auction_case",
+    "case_kind": "research_case",
+    "title_key": "case.fixture.title",
+    "tags": ["dream_link", "non_auction_path"],
+    "relationships": [
+      {"id": "rel_dream_researcher", "axes": {"trust": 0, "obligation": 0}}
+    ]
+  },
+  "lifecycle": {
+    "initial_status": "AVAILABLE",
+    "statuses": [
+      {"id": "AVAILABLE", "label_key": "status.available", "terminal": false},
+      {"id": "RECEIVED", "label_key": "status.received", "terminal": false},
+      {"id": "HELD", "label_key": "status.held", "terminal": false},
+      {"id": "PUBLISHED", "label_key": "status.published", "terminal": true},
+      {"id": "RETURNED", "label_key": "status.returned", "terminal": true}
+    ],
+    "transitions": [
+      {
+        "id": "receive_case",
+        "action_id": "RECEIVE",
+        "label_key": "action.receive",
+        "from": ["AVAILABLE"],
+        "to": "RECEIVED",
+        "requires": {"predicate": "lot_status_is", "value": "AVAILABLE"},
+        "effects": [{"op": "SET_CUSTODY_STATUS", "value": "RECEIVED"}]
+      }
+    ]
+  },
+  "observations": [
+    {
+      "id": "obs_dream_audio",
+      "label_key": "observation.dream_audio",
+      "action_id": "OBSERVE",
+      "output_evidence_candidate_ids": ["evidence_owner_sync"],
+      "requires": {"predicate": "lot_status_is", "value": "RECEIVED"},
+      "effects": [{"op": "EMIT_EVIDENCE", "evidence_candidate_id": "evidence_owner_sync"}],
+      "presentation": {"icon_id": "audio_wave"}
+    }
+  ],
+  "sources": [
+    {
+      "id": "source_owner_sleep_log",
+      "label_key": "source.owner_sleep_log",
+      "source_kind": "primary_record",
+      "visibility": "internal"
+    }
+  ],
+  "evidence_candidates": [
+    {
+      "id": "evidence_owner_sync",
+      "label_key": "evidence.owner_sync",
+      "source_id": "source_owner_sleep_log",
+      "initial_state": "candidate",
+      "visibility": "internal",
+      "tags": ["owner_state_correlation"]
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "hyp_owner_projection",
+      "label_key": "hypothesis.owner_projection",
+      "evidence_candidate_ids": ["evidence_owner_sync"]
+    }
+  ],
+  "contradictions": [
+    {
+      "id": "contradiction_source_or_relay",
+      "label_key": "contradiction.source_or_relay",
+      "hypothesis_ids": ["hyp_owner_projection"],
+      "evidence_candidate_ids": ["evidence_owner_sync"]
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim_owner_link",
+      "label_key": "claim.owner_link",
+      "initial_status": "draft",
+      "visibility": "private",
+      "hypothesis_ids": ["hyp_owner_projection"],
+      "allowed_evidence_candidate_ids": ["evidence_owner_sync"],
+      "submission_requires": {"predicate": "claim_has_source", "source_id": "source_owner_sleep_log"}
+    }
+  ],
+  "contractors": [
+    {
+      "id": "contractor_dream_researcher",
+      "label_key": "contractor.dream_researcher",
+      "report_profile_id": "report_dream_analysis",
+      "relationship_id": "rel_dream_researcher"
+    }
+  ],
+  "audit_reports": [
+    {
+      "id": "report_dream_analysis",
+      "label_key": "report.dream_analysis",
+      "evidence_candidate_ids": ["evidence_owner_sync"],
+      "anomalies": [
+        {"id": "anomaly_signal_gap", "label_key": "anomaly.signal_gap"}
+      ]
+    }
+  ],
+  "audit_actions": [
+    {
+      "id": "accept_dream_report",
+      "action_id": "AUDIT",
+      "label_key": "audit.accept_report",
+      "report_id": "report_dream_analysis",
+      "requires": {"predicate": "report_has_anomaly", "anomaly_id": "anomaly_signal_gap"},
+      "effects": [{"op": "MARK_REPORT_STATUS", "value": "ACCEPTED"}]
+    }
+  ],
+  "dispositions": [
+    {
+      "id": "retain_for_research",
+      "label_key": "disposition.retain",
+      "kind": "HOLD",
+      "terminal": false,
+      "permits": ["OBSERVE", "SEARCH", "RESEARCH", "COMMISSION", "REVIEW", "PUBLISH", "RETURN"],
+      "requires": {"predicate": "lot_status_is", "value": "RECEIVED"},
+      "effects": [{"op": "SET_CUSTODY_STATUS", "value": "HELD"}]
+    },
+    {
+      "id": "publish_research",
+      "label_key": "disposition.publish",
+      "kind": "PUBLISH",
+      "terminal": true,
+      "permits": [],
+      "requires": {"predicate": "lot_status_is", "value": "HELD"},
+      "effects": [{"op": "SET_CUSTODY_STATUS", "value": "PUBLISHED"}]
+    },
+    {
+      "id": "return_to_owner",
+      "label_key": "disposition.return",
+      "kind": "RETURN",
+      "terminal": true,
+      "permits": [],
+      "requires": {"predicate": "lot_status_is", "value": "RECEIVED"},
+      "effects": [{"op": "SET_CUSTODY_STATUS", "value": "RETURNED"}]
+    }
+  ],
+  "buyer_profiles": [
+    {
+      "id": "buyer_archive",
+      "label_key": "buyer.archive",
+      "qualification_ids": ["public_archive"],
+      "base_bid": 0,
+      "score_rules": []
+    }
+  ],
+  "bid_rules": {
+    "tie_breaker": "BUYER_ID_ASC",
+    "qualification_catalog": [
+      {"id": "public_archive", "label_key": "qualification.public_archive"}
+    ],
+    "listing_restrictions": [
+      {
+        "id": "archive_only",
+        "label_key": "restriction.archive_only",
+        "required_qualification_ids": ["public_archive"],
+        "eligibility": {"predicate": "bidder_has_qualification", "tag": "public_archive"}
+      }
+    ]
+  },
+  "content_packages": {
+    "default_locale": "ja",
+    "packages": [
+      {
+        "id": "fixture_ja",
+        "locale": "ja",
+        "strings": {
+          "case.fixture.title": "夢中継体の研究案件",
+          "status.available": "受領前",
+          "status.received": "受領済み",
+          "status.held": "研究保留",
+          "status.published": "研究公開済み",
+          "status.returned": "返却済み",
+          "action.receive": "案件を受領する",
+          "observation.dream_audio": "睡眠同期音声を観測する",
+          "source.owner_sleep_log": "所有者睡眠記録",
+          "evidence.owner_sync": "所有者REM睡眠との同期",
+          "hypothesis.owner_projection": "所有者の夢が投射されている",
+          "contradiction.source_or_relay": "発生源と中継点の不一致",
+          "claim.owner_link": "現象は所有者状態に接続している",
+          "contractor.dream_researcher": "夢現象研究者",
+          "report.dream_analysis": "夢同期分析報告",
+          "anomaly.signal_gap": "同期信号の欠落",
+          "audit.accept_report": "報告を採用する",
+          "disposition.retain": "研究を継続する",
+          "disposition.publish": "研究結果を公開する",
+          "disposition.return": "所有者へ返却する",
+          "buyer.archive": "公共異常資料庫",
+          "qualification.public_archive": "公共資料保管資格",
+          "restriction.archive_only": "公共資料庫限定",
+          "ui.intake": "受領台帳",
+          "ui.observation": "観察台",
+          "ui.research": "研究ボード",
+          "ui.disposition": "処分判断"
+        }
+      }
+    ]
+  },
+  "ui_presentation": {
+    "screen_order": ["intake", "observation", "research", "disposition"],
+    "screens": [
+      {"id": "intake", "label_key": "ui.intake", "collection": "case_metadata"},
+      {"id": "observation", "label_key": "ui.observation", "collection": "observations"},
+      {"id": "research", "label_key": "ui.research", "collection": "hypotheses"},
+      {"id": "disposition", "label_key": "ui.disposition", "collection": "dispositions"}
+    ]
+  }
+}

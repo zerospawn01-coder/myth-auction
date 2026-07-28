@@ -1,0 +1,36 @@
+{
+  "contact_id": "appraiser_01",
+  "display_name": "鑑定士",
+  "contact_type": "appraiser",
+  "specialty": "artifact valuation",
+  "tags": [
+    "appraiser",
+    "human"
+  ],
+  "relationship_state": "KNOWN",
+  "contactable": true,
+  "initially_unlocked": false,
+  "capabilities": [
+    "appraisal",
+    "inspection"
+  ],
+  "action_definitions": [
+    {
+      "action_id": "request_appraisal",
+      "verb": "REQUEST",
+      "target_id": "target_001",
+      "collaborator_ids": [
+        "appraiser_01"
+      ],
+      "conditions": {
+        "context_keys": [
+          "auditor_id"
+        ]
+      },
+      "metadata": {
+        "source_id": "appraiser_01",
+        "priority": 6
+      }
+    }
+  ]
+}

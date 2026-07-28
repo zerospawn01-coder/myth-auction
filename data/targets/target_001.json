@@ -1,0 +1,38 @@
+{
+  "target_id": "target_001",
+  "target_type": "PHYSICAL_OBJECT",
+  "display_name": "正体不明の呪具",
+  "description": "古めかしい木箱に収められた、かすかに鼓動する物体。",
+  "tags": [
+    "cursed",
+    "sealed",
+    "unexamined"
+  ],
+  "state": {
+    "is_sealed": true,
+    "risk_level": 50
+  },
+  "action_definitions": [
+    {
+      "action_id": "act_obs_001",
+      "verb": "OBSERVE",
+      "metadata": {
+        "label": "観察する",
+        "description": "対象の外観を詳細に観察する。"
+      }
+    },
+    {
+      "action_id": "act_inv_001",
+      "verb": "INVESTIGATE",
+      "effects": {
+        "unlock_contact_ids": [
+          "appraiser_01"
+        ]
+      },
+      "metadata": {
+        "label": "来歴を洗う",
+        "description": "市場の記録を調べ、鑑定士への接点を得る。"
+      }
+	}
+  ]
+}

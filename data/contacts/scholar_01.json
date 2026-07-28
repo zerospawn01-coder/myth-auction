@@ -1,0 +1,36 @@
+{
+  "contact_id": "scholar_01",
+  "display_name": "Scholar 01",
+  "contact_type": "researcher",
+  "specialty": "artifact analysis",
+  "relationship_state": "KNOWN",
+  "contactable": true,
+  "initially_unlocked": false,
+  "tags": [
+    "scholar",
+    "human"
+  ],
+  "capabilities": [
+    "research",
+    "peer_review"
+  ],
+  "action_definitions": [
+    {
+      "action_id": "request_expertise",
+      "verb": "request",
+      "target_id": "relic_001",
+      "collaborator_ids": [
+        "scholar_01"
+      ],
+      "conditions": {
+        "context_keys": [
+          "auditor_id"
+        ]
+      },
+      "metadata": {
+        "source_id": "scholar_01",
+        "priority": 10
+      }
+    }
+  ]
+}

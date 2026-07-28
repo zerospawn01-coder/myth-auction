@@ -1,0 +1,61 @@
+{
+  "actions": [
+    {
+      "action_id": "act_auc_list_item",
+      "verb": "LIST_AUCTION",
+      "conditions": {
+        "context_values": {
+          "auction_can_list": true
+        }
+      },
+      "metadata": {
+        "label": "競売ロットを作成する",
+        "description": "既知事実から算定した下限以上の留保価格で対象を出品する。",
+        "priority": 18
+      }
+    },
+    {
+      "action_id": "act_auc_place_bid",
+      "verb": "RECORD_BID",
+      "conditions": {
+        "context_values": {
+          "auction_can_bid": true
+        }
+      },
+      "metadata": {
+        "label": "入札提示を受理する",
+        "description": "選択したコンタクトからの入札提示を台帳へ記録する。",
+        "actor_context_key": "selected_bidder_id",
+        "priority": 17
+      }
+    },
+    {
+      "action_id": "act_auc_close_auction",
+      "verb": "CLOSE_AUCTION",
+      "conditions": {
+        "context_values": {
+          "auction_can_close": true
+        }
+      },
+      "metadata": {
+        "label": "競売を締め切る",
+        "description": "最高入札を確定し、署名済み契約を生成する。",
+        "priority": 16
+      }
+    },
+    {
+      "action_id": "act_auc_fulfill_contract",
+      "verb": "FULFILL_CONTRACT",
+      "conditions": {
+        "context_values": {
+          "auction_can_fulfill": true
+        }
+      },
+      "metadata": {
+        "label": "契約を履行し権利移転する",
+        "description": "署名済み契約を履行し、所有権を落札者へ移転する。",
+        "priority": 15
+      }
+    }
+  ]
+}

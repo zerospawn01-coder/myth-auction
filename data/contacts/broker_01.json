@@ -1,0 +1,37 @@
+{
+  "contact_id": "broker_01",
+  "display_name": "闇ブローカー",
+  "contact_type": "broker",
+  "specialty": "auction routing",
+  "tags": [
+    "broker",
+    "human"
+  ],
+  "relationship_state": "KNOWN",
+  "contactable": true,
+  "initially_unlocked": true,
+  "capabilities": [
+    "brokerage",
+    "auction",
+    "auction_bidder"
+  ],
+  "action_definitions": [
+    {
+      "action_id": "request_brokerage",
+      "verb": "REQUEST",
+      "target_id": "target_001",
+      "collaborator_ids": [
+        "broker_01"
+      ],
+      "conditions": {
+        "context_keys": [
+          "auditor_id"
+        ]
+      },
+      "metadata": {
+        "source_id": "broker_01",
+        "priority": 8
+      }
+    }
+  ]
+}

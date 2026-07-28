@@ -1,0 +1,40 @@
+{
+  "actions": [
+    {
+      "action_id": "act_pub_submit_paper",
+      "verb": "SUBMIT_PAPER",
+      "conditions": {
+        "context_values": {
+          "selected_hypothesis_state": "PROVEN",
+          "selected_hypothesis_has_active_paper": false
+        }
+      },
+      "effects": {
+        "unlock_contact_ids": [
+          "scholar_01"
+        ]
+      },
+      "metadata": {
+        "label": "論文を提出する",
+        "description": "選択中の証明済み仮説を論文として提出する。",
+        "priority": 20
+      }
+    },
+    {
+      "action_id": "act_pub_request_review",
+      "verb": "REQUEST_PEER_REVIEW",
+      "conditions": {
+        "context_values": {
+          "selected_paper_state": "SUBMITTED",
+          "selected_reviewer_available": true,
+          "selected_reviewer_can_peer_review": true
+        }
+      },
+      "metadata": {
+        "label": "査読を依頼する",
+        "description": "選択中の論文を、選択した研究者へ査読依頼する。",
+        "priority": 19
+      }
+    }
+  ]
+}

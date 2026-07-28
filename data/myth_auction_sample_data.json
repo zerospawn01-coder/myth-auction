@@ -1,0 +1,71 @@
+{
+  "targets": [
+    {
+      "target_id": "target_001",
+      "target_type": "PHYSICAL_OBJECT",
+      "display_name": "正体不明の呪具",
+      "description": "古めかしい木箱に収められた、かすかに鼓動する物体。",
+      "tags": ["cursed", "sealed", "unexamined"],
+      "state": {
+        "is_sealed": true,
+        "risk_level": 50
+      },
+      "action_definitions": [
+        {
+          "action_id": "act_obs_001",
+          "verb": "OBSERVE",
+          "metadata": {
+            "label": "観察する",
+            "description": "対象の外観を詳細に観察する。"
+          }
+        },
+        {
+          "action_id": "act_auc_001",
+          "verb": "AUCTION",
+          "conditions": {
+            "min_collaborators": 1,
+            "target_state": {
+              "is_sealed": false
+            }
+          },
+          "metadata": {
+            "label": "競売にかける",
+            "description": "協力者を通じてオークションに出品する。※封印を解く必要がある。"
+          }
+        }
+      ]
+    },
+    {
+      "target_id": "target_002",
+      "target_type": "INFORMATION",
+      "display_name": "破棄された観測記録",
+      "description": "黒塗りの文書。何かの実験データらしい。",
+      "tags": ["document", "redacted"],
+      "state": {
+        "unknown_level": 100
+      },
+      "action_definitions": [
+        {
+          "action_id": "act_obs_002",
+          "verb": "OBSERVE",
+          "metadata": {
+            "label": "解読を試みる",
+            "description": "文書の黒塗り部分の解読を試みる。"
+          }
+        }
+      ]
+    }
+  ],
+  "collaborators": [
+    {
+      "collaborator_id": "collab_broker_01",
+      "display_name": "闇ブローカー",
+      "tags": ["broker", "human"]
+    },
+    {
+      "collaborator_id": "collab_appraiser_01",
+      "display_name": "鑑定士",
+      "tags": ["appraiser", "human"]
+    }
+  ]
+}

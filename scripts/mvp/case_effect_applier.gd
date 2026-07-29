@@ -48,6 +48,10 @@ const SUPPORTED_EFFECT_IDS := {
 	"COMMIT_COMPARISON": true,
 	"COMMIT_REPLICATION": true,
 	"COMMIT_INTERPRETATION": true,
+	"COMMIT_ARCHIVE_SEARCH": true,
+	"COMMIT_DOCUMENT": true,
+	"COMMIT_EVIDENCE_CLIP": true,
+	"COMMIT_CONTRADICTION_RESOLUTION": true,
 }
 
 var last_error: String = ""
@@ -132,6 +136,14 @@ func _apply_one(operation_id: String, effect: Dictionary, model: Dictionary, con
 			return _set_field(_dict(model.get("lot_state", {})), "status", str(effect.get("value", "")), "lot_state")
 		"EMIT_EVIDENCE":
 			return _emit_evidence(effect, model, context)
+		"COMMIT_ARCHIVE_SEARCH":
+			return _commit_archive_search(effect, model)
+		"COMMIT_DOCUMENT":
+			return _commit_document(effect, model)
+		"COMMIT_EVIDENCE_CLIP":
+			return _commit_evidence_clip(effect, model)
+		"COMMIT_CONTRADICTION_RESOLUTION":
+			return _commit_contradiction_resolution(effect, model)
 		"COMMIT_OBSERVATION":
 			return _commit_observation(effect, model)
 		"COMMIT_COMMISSION_ORDER":
@@ -148,6 +160,143 @@ func _apply_one(operation_id: String, effect: Dictionary, model: Dictionary, con
 			return _commit_interpretation(effect, model)
 		_:
 			return _error("unknown effect: %s" % operation_id)
+
+
+func _commit_archive_search(effect: Dictionary, model: Dictionary) -> Dictionary:
+	if typeof(effect.get("tags", null)) != TYPE_ARRAY \
+			or typeof(effect.get("result_ids", null)) != TYPE_ARRAY:
+		return _error("COMMIT_ARCHIVE_SEARCH requires tags and result_ids arrays")
+	var tags: Array = effect.get("tags", []).duplicate(true)
+	var result_ids: Array = effect.get("result_ids", []).duplicate(true)
+	var before := {
+		"tags": _array(model.get("last_search_tags", [])).duplicate(true),
+		"result_ids": _array(model.get("last_search_result_ids", [])).duplicate(true)
+	}
+	model["last_search_tags"] = tags
+	model["last_search_result_ids"] = result_ids
+	return {
+		"target": "archive_search",
+		"before": before,
+		"after": {"tags": tags.duplicate(true), "result_ids": result_ids.duplicate(true)}
+	}
+
+
+func _commit_document(effect: Dictionary, model: Dictionary) -> Dictionary:
+	var document_id := str(effect.get("document_id", ""))
+	var record: Dictionary = _dict(effect.get("record", {})).duplicate(true)
+	var documents := _dict(model.get("document_states", {}))
+	if document_id.is_empty() or record.is_empty():
+		return _error("COMMIT_DOCUMENT requires document_id and record")
+	if not documents.has(document_id):
+		return _error("document not found: %s" % document_id)
+	if str(_dict(documents[document_id]).get("state", "")) == "COMMITTED":
+		return _error("document already committed: %s" % document_id)
+	if str(record.get("state", "")) != "COMMITTED" \
+			or typeof(record.get("content", null)) != TYPE_DICTIONARY \
+			or str(record.get("content_hash", "")).is_empty():
+		return _error("invalid committed document record: %s" % document_id)
+	var before: Dictionary = _dict(documents[document_id]).duplicate(true)
+	documents[document_id] = record
+	model["document_states"] = documents
+	return {
+		"target": "document:%s" % document_id,
+		"before": before,
+		"after": record.duplicate(true)
+	}
+
+
+func _commit_evidence_clip(effect: Dictionary, model: Dictionary) -> Dictionary:
+	var evidence_id := str(effect.get("evidence_id", ""))
+	var card: Dictionary = _dict(effect.get("card", {})).duplicate(true)
+	var cards := _dict(model.get("evidence_cards", {}))
+	var documents := _dict(model.get("document_states", {}))
+	var source_id := str(card.get("source_id", ""))
+	if evidence_id.is_empty() or card.is_empty():
+		return _error("COMMIT_EVIDENCE_CLIP requires evidence_id and card")
+	if cards.has(evidence_id):
+		return _error("evidence already clipped: %s" % evidence_id)
+	if str(card.get("evidence_id", "")) != evidence_id:
+		return _error("evidence record id mismatch: %s" % evidence_id)
+	if not documents.has(source_id) \
+			or str(_dict(documents[source_id]).get("state", "")) != "COMMITTED":
+		return _error("evidence source document is not committed: %s" % source_id)
+	var source_document: Dictionary = _dict(documents[source_id])
+	if str(card.get("content_hash", "")) != str(source_document.get("content_hash", "")):
+		return _error("evidence source Content Hash mismatch: %s" % evidence_id)
+	var reserved_content = effect.get("source_content", null)
+	if typeof(reserved_content) != TYPE_DICTIONARY:
+		return _error("evidence reservation is missing source content: %s" % evidence_id)
+	if source_document.get("content", {}) != reserved_content:
+		return _error("evidence source content changed after reservation: %s" % evidence_id)
+	if str(source_document.get("content_seed", "")) \
+			!= str(effect.get("source_content_seed", "")):
+		return _error("evidence source seed changed after reservation: %s" % evidence_id)
+
+	var contradiction_states := _dict(model.get("contradiction_states", {}))
+	var contradiction_updates: Dictionary = _dict(effect.get("contradiction_updates", {}))
+	var contradiction_before: Dictionary = {}
+	for contradiction_id_value in contradiction_updates:
+		var contradiction_id := str(contradiction_id_value)
+		if not contradiction_states.has(contradiction_id):
+			return _error("contradiction not found: %s" % contradiction_id)
+		var current: Dictionary = _dict(contradiction_states[contradiction_id])
+		var next_state: Dictionary = _dict(contradiction_updates[contradiction_id_value])
+		if str(current.get("status", "")) != "DORMANT" \
+				or str(next_state.get("status", "")) != "AVAILABLE":
+			return _error("stale contradiction availability: %s" % contradiction_id)
+		contradiction_before[contradiction_id] = current.duplicate(true)
+		contradiction_states[contradiction_id] = next_state.duplicate(true)
+
+	cards[evidence_id] = card
+	model["evidence_cards"] = cards
+	model["contradiction_states"] = contradiction_states
+	return {
+		"target": "evidence:%s" % evidence_id,
+		"before": {
+			"card": null,
+			"contradictions": contradiction_before
+		},
+		"after": {
+			"card": card.duplicate(true),
+			"contradictions": contradiction_updates.duplicate(true)
+		}
+	}
+
+
+func _commit_contradiction_resolution(effect: Dictionary, model: Dictionary) -> Dictionary:
+	var contradiction_id := str(effect.get("contradiction_id", ""))
+	var next_state: Dictionary = _dict(effect.get("record", {})).duplicate(true)
+	var followups_value = effect.get("followups", null)
+	if contradiction_id.is_empty() or next_state.is_empty() or typeof(followups_value) != TYPE_ARRAY:
+		return _error("COMMIT_CONTRADICTION_RESOLUTION requires contradiction_id, record, and followups")
+	if str(next_state.get("status", "")) not in ["RESOLVED", "ACKNOWLEDGED"]:
+		return _error("invalid contradiction resolution state: %s" % contradiction_id)
+	var states := _dict(model.get("contradiction_states", {}))
+	if not states.has(contradiction_id):
+		return _error("contradiction not found: %s" % contradiction_id)
+	var current: Dictionary = _dict(states[contradiction_id])
+	if str(current.get("status", "")) != "AVAILABLE":
+		return _error("contradiction is not available: %s" % contradiction_id)
+	var unlocked := _array(model.get("unlocked_followups", []))
+	var unlocked_before := unlocked.duplicate(true)
+	for followup_value in followups_value:
+		var followup_id := str(followup_value)
+		if not followup_id.is_empty() and not unlocked.has(followup_id):
+			unlocked.append(followup_id)
+	states[contradiction_id] = next_state
+	model["contradiction_states"] = states
+	model["unlocked_followups"] = unlocked
+	return {
+		"target": "contradiction:%s" % contradiction_id,
+		"before": {
+			"record": current.duplicate(true),
+			"unlocked_followups": unlocked_before
+		},
+		"after": {
+			"record": next_state.duplicate(true),
+			"unlocked_followups": unlocked.duplicate(true)
+		}
+	}
 
 
 func _commit_observation(effect: Dictionary, model: Dictionary) -> Dictionary:

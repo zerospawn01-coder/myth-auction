@@ -51,7 +51,10 @@ static func causal_revision_for(state) -> int:
 	var count := 0
 	for entry_value in state.trace_ledger.entries:
 		var entry: Dictionary = entry_value if typeof(entry_value) == TYPE_DICTIONARY else {}
-		if CAUSAL_EVENT_TYPES.has(str(entry.get("event_type", ""))):
+		var decision: Dictionary = entry.get("decision", {}) if typeof(entry.get("decision", {})) == TYPE_DICTIONARY else {}
+		if decision.has("causal_revision_delta"):
+			count += clampi(int(decision.get("causal_revision_delta", 0)), 0, 1)
+		elif CAUSAL_EVENT_TYPES.has(str(entry.get("event_type", ""))):
 			count += 1
 	return count
 
@@ -142,6 +145,11 @@ static func reserve_outcome(intent: Dictionary, state, resolver) -> Dictionary:
 
 	var context_intent: Variant = intent.get("context", {})
 	var context_dict: Dictionary = context_intent if typeof(context_intent) == TYPE_DICTIONARY else {}
+	var reservation_causal_revision_delta := clampi(
+		int(semantic_plan.get("causal_revision_delta", 1)),
+		0,
+		1
+	)
 	var reserved := {
 		"event_id":        event_id,
 		"action_id":       action_id,
@@ -155,6 +163,16 @@ static func reserve_outcome(intent: Dictionary, state, resolver) -> Dictionary:
 		"semantic_trace_payload": semantic_plan.get("trace_payload", {}).duplicate(true),
 		"semantic_effect_count": int(semantic_plan.get("semantic_effect_count", 0)),
 		"presentation_cue_ids": semantic_plan.get("presentation_cue_ids", []).duplicate(true),
+		"projection_invalidations": semantic_plan.get("projection_invalidations", []).duplicate(true),
+		"final_trace_event_type": str(semantic_plan.get("final_trace_event_type", "CONSEQUENCE_APPLIED")),
+		"final_trace_source_id": str(semantic_plan.get("final_trace_source_id", event_id)),
+		"final_trace_causal_revision_delta": clampi(
+			int(semantic_plan.get("final_trace_causal_revision_delta", 0)),
+			0,
+			1
+		),
+		"state_change_reason": str(semantic_plan.get("state_change_reason", "action_intent")),
+		"causal_revision_delta": reservation_causal_revision_delta,
 		"context":         context_dict,
 		"input_revision": causal_revision_for(state),
 		"error":           ""
@@ -166,7 +184,8 @@ static func reserve_outcome(intent: Dictionary, state, resolver) -> Dictionary:
 		{
 			"consequence_key": consequence_key,
 			"reserved_outcome": reserved.duplicate(true),
-			"reserved_outcome_hash": state.trace_ledger.deterministic_hash(reserved)
+			"reserved_outcome_hash": state.trace_ledger.deterministic_hash(reserved),
+			"causal_revision_delta": reservation_causal_revision_delta
 		},
 		next_tick)
 	if reservation_entry.is_empty():
@@ -215,26 +234,40 @@ static func apply_reserved(reserved: Dictionary, state) -> Dictionary:
 	# Commit working model back to state
 	_commit_model(working_model, state)
 
-	# Append ConsequenceApplied while the rollback snapshot is still available.
+	# Append the contract-selected semantic final Trace while the rollback
+	# snapshot is still available. Contracts without an override retain the
+	# legacy CONSEQUENCE_APPLIED event.
 	var event_id := str(reserved.get("event_id", "EVT-UNKNOWN"))
 	var action_id := str(reserved.get("action_id", "ACTION_INTENT_COMMITTED"))
+	var final_event_type := str(reserved.get("final_trace_event_type", "CONSEQUENCE_APPLIED"))
+	var final_source_id := str(reserved.get("final_trace_source_id", event_id))
+	var final_causal_revision_delta := clampi(
+		int(reserved.get("final_trace_causal_revision_delta", 0)),
+		0,
+		1
+	)
+	var semantic_payload: Dictionary = reserved.get("semantic_trace_payload", {}) \
+		if typeof(reserved.get("semantic_trace_payload", {})) == TYPE_DICTIONARY else {}
+	var final_decision := semantic_payload.duplicate(true)
+	final_decision.merge({
+		"action_id":       action_id,
+		"consequence_key": reserved.get("consequence_key", {}),
+		"effect_contract_id": reserved.get("effect_contract_id", ""),
+		"semantic_event_ids": reserved.get("semantic_event_ids", []),
+		"affected_entity_ids": reserved.get("affected_entity_ids", []),
+		"state_revision_before": reserved.get("input_revision", 0),
+		"state_revision_after": causal_revision_for(state) + final_causal_revision_delta,
+		"causal_revision_delta": final_causal_revision_delta,
+		"reserved_outcome_hash": state.trace_ledger.deterministic_hash(reserved),
+		"state_delta_hash": state.trace_ledger.deterministic_hash(result.get("changes", [])),
+		"participant_index": reserved.get("participant_index", {}),
+		"changes":         result.get("changes", [])
+	}, true)
 	state.tick += 1
 	var ledger_entry: Dictionary = state.trace_ledger.append(
-		"CONSEQUENCE_APPLIED",
-		event_id,
-		{
-			"action_id":       action_id,
-			"consequence_key": reserved.get("consequence_key", {}),
-			"effect_contract_id": reserved.get("effect_contract_id", ""),
-			"semantic_event_ids": reserved.get("semantic_event_ids", []),
-			"affected_entity_ids": reserved.get("affected_entity_ids", []),
-			"state_revision_before": reserved.get("input_revision", 0),
-			"state_revision_after": causal_revision_for(state) + 1,
-			"reserved_outcome_hash": state.trace_ledger.deterministic_hash(reserved),
-			"state_delta_hash": state.trace_ledger.deterministic_hash(result.get("changes", [])),
-			"participant_index": reserved.get("participant_index", {}),
-			"changes":         result.get("changes", [])
-		},
+		final_event_type,
+		final_source_id,
+		final_decision,
 		state.tick
 	)
 
@@ -258,13 +291,16 @@ static func apply_reserved(reserved: Dictionary, state) -> Dictionary:
 		state.participant_history_index[entity_id] = history
 	state.pending_action_intents.erase(event_id)
 
-	state.state_changed.emit("action_intent")
+	var state_change_reason := str(reserved.get("state_change_reason", "action_intent"))
+	state.state_changed.emit(state_change_reason if not state_change_reason.is_empty() else "action_intent")
 
 	return {
 		"ok":        true,
 		"event_id":  event_id,
 		"ledger_index": ledger_entry.get("index", -1),
 		"changes":   result.get("changes", []),
+		"trace_event_type": final_event_type,
+		"state_change_reason": state_change_reason,
 		"presentation_cue_ids": reserved.get("presentation_cue_ids", []).duplicate(true)
 	}
 
@@ -284,6 +320,9 @@ static func _build_model_snapshot(state) -> Dictionary:
 		"relationships":      _dup(state.relationships),
 		"review_answers":     _dup(state.review_answers),
 		"document_states":    _dup(state.document_states),
+		"contradiction_states": _dup(state.contradiction_states),
+		"last_search_tags":      _dup(state.last_search_tags),
+		"last_search_result_ids": _dup(state.last_search_result_ids),
 		"observation_states": _dup(state.observation_states),
 		"observations":       _dup(state.observations),
 		"signal_analysis_records": _dup(state.signal_analysis_records),
@@ -311,6 +350,9 @@ static func _commit_model(model: Dictionary, state) -> void:
 	if model.has("relationships"):      state.relationships = _as_dict(model["relationships"])
 	if model.has("review_answers"):     state.review_answers = _as_dict(model["review_answers"])
 	if model.has("document_states"):    state.document_states = _as_dict(model["document_states"])
+	if model.has("contradiction_states"): state.contradiction_states = _as_dict(model["contradiction_states"])
+	if model.has("last_search_tags"):      state.last_search_tags = _as_array(model["last_search_tags"])
+	if model.has("last_search_result_ids"): state.last_search_result_ids = _as_array(model["last_search_result_ids"])
 	if model.has("observation_states"): state.observation_states = _as_dict(model["observation_states"])
 	if model.has("observations"):       state.observations = _as_dict(model["observations"])
 	if model.has("signal_analysis_records"): state.signal_analysis_records = _as_dict(model["signal_analysis_records"])
@@ -374,7 +416,14 @@ static func _validate_participants(participants: Array) -> String:
 		if typeof(value) != TYPE_DICTIONARY:
 			return "participant の型が不正です"
 		var p: Dictionary = value
-		if str(p.get("entity_kind", "")) not in ["SUBJECT", "TOOL", "CONTACT", "OBSERVATION_METHOD"]:
+		if str(p.get("entity_kind", "")) not in [
+			"SUBJECT",
+			"TOOL",
+			"CONTACT",
+			"OBSERVATION_METHOD",
+			"OBSERVATION",
+			"EVIDENCE"
+		]:
 			return "participant.entity_kind が不正です"
 		if str(p.get("entity_id", "")).is_empty() or str(p.get("semantic_role", "")).is_empty():
 			return "participant のIDまたはsemantic_roleが不足しています"

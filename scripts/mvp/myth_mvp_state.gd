@@ -6,6 +6,7 @@ const TraceLedgerScript = preload("res://scripts/mvp/trace_ledger.gd")
 const PredicateEvaluatorScript = preload("res://scripts/mvp/case_predicate_evaluator.gd")
 const EffectApplierScript = preload("res://scripts/mvp/case_effect_applier.gd")
 const SubjectRelationLayerScript = preload("res://scripts/mvp/subject_relation_layer.gd")
+const ActionIntentPipelineScript = preload("res://scripts/mvp/action_intent_pipeline.gd")
 
 const SAVE_SCHEMA_VERSION := 2
 const LEGACY_SAVE_SCHEMA_VERSION := 1
@@ -257,18 +258,12 @@ func commit_observation(method_id: String) -> Dictionary:
 func search_documents(tags: Array) -> Array:
 	if not _require_action("search"):
 		return []
-	last_search_tags = tags.duplicate()
-	var results := resolver.search_documents(tags)
-	last_search_result_ids.clear()
-	for result_value in results:
-		var result: Dictionary = result_value
-		last_search_result_ids.append(str(result.get("id", "")))
-	_trace("ARCHIVE_SEARCHED", str(lot_state.get("lot_id", "")), {
-		"tags": last_search_tags.duplicate(),
-		"result_ids": last_search_result_ids.duplicate()
-	})
-	state_changed.emit("archive")
-	return results
+	var applied := _execute_analyze_contract(
+		"search",
+		"SEARCH_ARCHIVE",
+		{"tags": tags.duplicate(true)}
+	)
+	return resolver.search_documents(tags) if bool(applied.get("ok", false)) else []
 
 
 func open_document(document_id: String) -> Dictionary:
@@ -282,26 +277,19 @@ func open_document(document_id: String) -> Dictionary:
 		return {}
 	var current: Dictionary = document_states[document_id]
 	if str(current.get("state", "")) == "COMMITTED":
+		var integrity_error := _committed_document_integrity_error(document_id, current, resolver)
+		if not integrity_error.is_empty():
+			_fail(integrity_error)
+			return {}
 		return current.duplicate(true)
-	var resolved := resolver.resolve_document(document_id, resolver.get_determinism_version())
-	if resolved.is_empty():
-		_fail("資料内容を確定できません")
+	var applied := _execute_analyze_contract(
+		"research",
+		"COMMIT_DOCUMENT",
+		{"document_id": document_id}
+	)
+	if not bool(applied.get("ok", false)):
 		return {}
-	current = {
-		"state": "COMMITTED",
-		"content_seed": str(resolved.get("content_seed", "")),
-		"content_hash": str(resolved.get("content_hash", "")),
-		"content": _as_dictionary(resolved.get("content", {})).duplicate(true),
-		"metadata": _as_dictionary(resolved.get("document", {})).duplicate(true),
-		"committed_tick": tick + 1
-	}
-	document_states[document_id] = current
-	_trace("DOCUMENT_COMMITTED", document_id, {
-		"content_seed": current["content_seed"],
-		"content_hash": current["content_hash"]
-	})
-	state_changed.emit("archive")
-	return current.duplicate(true)
+	return _as_dictionary(document_states.get(document_id, {})).duplicate(true)
 
 
 func clip_excerpt(document_id: String, excerpt_id: String, relation: String = "UNRESOLVED") -> Dictionary:
@@ -315,6 +303,10 @@ func clip_excerpt(document_id: String, excerpt_id: String, relation: String = "U
 	if str(document_state.get("state", "")) != "COMMITTED":
 		_fail("資料を開いてから引用してください")
 		return {}
+	var integrity_error := _committed_document_integrity_error(document_id, document_state, resolver)
+	if not integrity_error.is_empty():
+		_fail(integrity_error)
+		return {}
 	var excerpt := _find_excerpt(_as_dictionary(document_state.get("content", {})), excerpt_id)
 	if excerpt.is_empty():
 		_fail("資料内に引用箇所がありません")
@@ -324,28 +316,18 @@ func clip_excerpt(document_id: String, excerpt_id: String, relation: String = "U
 	var evidence_id := str(candidate.get("id", candidate_id))
 	if evidence_cards.has(evidence_id):
 		return _as_dictionary(evidence_cards[evidence_id]).duplicate(true)
-	var metadata := _as_dictionary(document_state.get("metadata", {}))
-	var card := {
-		"evidence_id": evidence_id,
-		"source_id": document_id,
-		"source_title": str(metadata.get("title", "")),
-		"source_type": str(metadata.get("source_type", "")),
-		"excerpt_id": excerpt_id,
-		"quote": str(excerpt.get("text", "")),
-		"source_location": str(excerpt.get("location", "")),
-		"diagnosis_tags": excerpt.get("diagnosis_tags", []).duplicate(true),
-		"player_relation": normalized_relation,
-		"status": str(candidate.get("initial_state", "candidate")),
-		"visibility": str(candidate.get("visibility", "internal")),
-		"evidence_candidate_id": str(candidate.get("id", "")),
-		"content_hash": str(document_state.get("content_hash", "")),
-		"created_tick": tick + 1
-	}
-	evidence_cards[evidence_id] = card
-	_refresh_contradiction_availability()
-	_trace("EVIDENCE_CLIPPED", evidence_id, card)
-	state_changed.emit("research")
-	return card.duplicate(true)
+	var applied := _execute_analyze_contract(
+		"research",
+		"CLIP_EVIDENCE",
+		{
+			"document_id": document_id,
+			"excerpt_id": excerpt_id,
+			"relation": normalized_relation
+		}
+	)
+	if not bool(applied.get("ok", false)):
+		return {}
+	return _as_dictionary(evidence_cards.get(evidence_id, {})).duplicate(true)
 
 
 func classify_evidence(evidence_id: String, relation: String) -> bool:
@@ -387,19 +369,15 @@ func resolve_contradiction(contradiction_id: String, cause: String) -> bool:
 		return _fail("必要な証拠カードが揃っていません")
 	if cause not in definition.get("allowed_causes", []):
 		return _fail("選択できない矛盾原因です")
-	var followups: Array = definition.get("followup_actions", []).duplicate(true)
-	contradiction_states[contradiction_id] = {
-		"status": "RESOLVED" if cause != "未解決" else "ACKNOWLEDGED",
-		"cause": cause,
-		"followup_actions": followups
-	}
-	_add_unique_values(unlocked_followups, followups)
-	_trace("CONTRADICTION_CLASSIFIED", contradiction_id, {
-		"cause": cause,
-		"followup_actions": followups
-	})
-	state_changed.emit("research")
-	return true
+	var applied := _execute_analyze_contract(
+		"research",
+		"RESOLVE_CONTRADICTION",
+		{
+			"contradiction_id": contradiction_id,
+			"cause": cause
+		}
+	)
+	return bool(applied.get("ok", false))
 
 
 func place_commission(order: Dictionary) -> Dictionary:
@@ -954,6 +932,9 @@ func load_from_dictionary(snapshot: Dictionary) -> bool:
 		return _fail("TraceEvent連鎖が破損しています")
 	if int(candidate_snapshot.get("tick", -1)) != candidate_ledger.entries.size():
 		return _fail("セーブtickとTraceEvent数が一致しません")
+	var analyze_integrity_error := _analyze_snapshot_integrity_error(candidate_snapshot, candidate_resolver)
+	if not analyze_integrity_error.is_empty():
+		return _fail(analyze_integrity_error)
 	# Do not mutate this aggregate until every candidate component has verified.
 	resolver = candidate_resolver
 	trace_ledger = candidate_ledger
@@ -1243,11 +1224,128 @@ func _refresh_contradiction_availability() -> void:
 
 
 func _find_excerpt(content: Dictionary, excerpt_id: String) -> Dictionary:
-	for excerpt_value in content.get("excerpts", []):
+	for excerpt_value in _to_array(content.get("excerpts", [])):
+		if typeof(excerpt_value) != TYPE_DICTIONARY:
+			continue
 		var excerpt: Dictionary = excerpt_value
 		if str(excerpt.get("excerpt_id", "")) == excerpt_id:
 			return excerpt
 	return {}
+
+
+func _committed_document_integrity_error(document_id: String, document_state: Dictionary, candidate_resolver) -> String:
+	if str(document_state.get("state", "")) != "COMMITTED":
+		return ""
+	if candidate_resolver == null or candidate_resolver.get_record("documents", document_id).is_empty():
+		return "資料の出典定義が一致しません: %s" % document_id
+	var canonical: Dictionary = candidate_resolver.resolve_document(
+		document_id,
+		candidate_resolver.get_determinism_version()
+	)
+	if canonical.is_empty() or typeof(canonical.get("content", null)) != TYPE_DICTIONARY:
+		return "資料の正規本文を確定できません: %s" % document_id
+	if typeof(document_state.get("content", null)) != TYPE_DICTIONARY:
+		return "確定資料の本文が破損しています: %s" % document_id
+	var stored_hash := str(document_state.get("content_hash", ""))
+	if stored_hash.is_empty():
+		return "確定資料のContent Hashがありません: %s" % document_id
+	var computed_hash := trace_ledger.deterministic_hash(document_state.get("content", {}))
+	if computed_hash != stored_hash:
+		return "確定資料のContent Hashが一致しません: %s" % document_id
+	var canonical_hash := str(canonical.get("content_hash", ""))
+	if canonical_hash.is_empty() \
+			or trace_ledger.deterministic_hash(canonical.get("content", {})) != canonical_hash:
+		return "資料の正規Content Hashが破損しています: %s" % document_id
+	if stored_hash != canonical_hash:
+		return "確定資料が正規本文と一致しません: %s" % document_id
+	if str(document_state.get("content_seed", "")) != str(canonical.get("content_seed", "")):
+		return "確定資料のContent Seedが正規値と一致しません: %s" % document_id
+	return ""
+
+
+func _analyze_snapshot_integrity_error(candidate_snapshot: Dictionary, candidate_resolver) -> String:
+	var candidate_document_states := _as_dictionary(candidate_snapshot.get("document_states", {}))
+	for document_id_value in candidate_document_states:
+		var document_id := str(document_id_value)
+		if typeof(candidate_document_states[document_id_value]) != TYPE_DICTIONARY:
+			return "セーブ内の資料状態が破損しています: %s" % document_id
+		var document_state: Dictionary = candidate_document_states[document_id_value]
+		var document_error := _committed_document_integrity_error(document_id, document_state, candidate_resolver)
+		if not document_error.is_empty():
+			return document_error
+
+	var candidate_evidence_cards := _as_dictionary(candidate_snapshot.get("evidence_cards", {}))
+	for evidence_id_value in candidate_evidence_cards:
+		var evidence_id := str(evidence_id_value)
+		if typeof(candidate_evidence_cards[evidence_id_value]) != TYPE_DICTIONARY:
+			return "セーブ内のEvidenceが破損しています: %s" % evidence_id
+		var card: Dictionary = candidate_evidence_cards[evidence_id_value]
+		var evidence_error := _document_evidence_integrity_error(
+			evidence_id,
+			card,
+			candidate_document_states,
+			candidate_resolver
+		)
+		if not evidence_error.is_empty():
+			return evidence_error
+	return ""
+
+
+func _document_evidence_integrity_error(
+	evidence_id: String,
+	card: Dictionary,
+	candidate_document_states: Dictionary,
+	candidate_resolver
+) -> String:
+	var source_id := str(card.get("source_id", ""))
+	var excerpt_id := str(card.get("excerpt_id", ""))
+	var source_document: Dictionary = candidate_resolver.get_record("documents", source_id) if candidate_resolver != null else {}
+	var has_document_provenance: bool = not source_document.is_empty() \
+		or not excerpt_id.is_empty() \
+		or (card.has("content_hash") and str(card.get("source_type", "")) != "COMMISSION_REPORT")
+	if not has_document_provenance:
+		return ""
+	if source_document.is_empty():
+		return "Evidenceの出典資料が一致しません: %s" % evidence_id
+	if excerpt_id.is_empty():
+		return "Evidenceの引用箇所がありません: %s" % evidence_id
+	if not candidate_document_states.has(source_id) \
+			or typeof(candidate_document_states[source_id]) != TYPE_DICTIONARY:
+		return "Evidenceの出典資料状態がありません: %s" % evidence_id
+
+	var document_state: Dictionary = candidate_document_states[source_id]
+	var source_content: Dictionary = {}
+	var expected_content_hash := ""
+	if str(document_state.get("state", "")) == "COMMITTED":
+		source_content = _as_dictionary(document_state.get("content", {}))
+		expected_content_hash = str(document_state.get("content_hash", ""))
+	else:
+		var resolved: Dictionary = candidate_resolver.resolve_document(source_id, candidate_resolver.get_determinism_version())
+		if resolved.is_empty():
+			return "Evidenceの出典資料を確定できません: %s" % evidence_id
+		source_content = _as_dictionary(resolved.get("content", {}))
+		expected_content_hash = str(resolved.get("content_hash", ""))
+
+	var excerpt := _find_excerpt(source_content, excerpt_id)
+	if excerpt.is_empty():
+		return "Evidenceの引用箇所が出典資料と一致しません: %s" % evidence_id
+	if str(card.get("quote", "")) != str(excerpt.get("text", "")):
+		return "Evidenceの引用文が出典資料と一致しません: %s" % evidence_id
+	if str(card.get("source_location", "")) != str(excerpt.get("location", "")):
+		return "Evidenceの引用位置が出典資料と一致しません: %s" % evidence_id
+	if _to_string_array(card.get("diagnosis_tags", [])) != _to_string_array(excerpt.get("diagnosis_tags", [])):
+		return "Evidenceの診断タグが出典資料と一致しません: %s" % evidence_id
+	if str(card.get("content_hash", "")) != expected_content_hash:
+		return "EvidenceのContent Hashが出典資料と一致しません: %s" % evidence_id
+
+	var evidence_candidate_id := str(card.get("evidence_candidate_id", ""))
+	if not evidence_candidate_id.is_empty():
+		var evidence_candidate: Dictionary = candidate_resolver.get_record("evidence_candidates", evidence_candidate_id)
+		if evidence_candidate.is_empty() \
+				or str(evidence_candidate.get("source_id", "")) != source_id \
+				or str(evidence_candidate.get("excerpt_id", "")) != excerpt_id:
+			return "Evidence候補の出典対応が一致しません: %s" % evidence_id
+	return ""
 
 
 func _observation_id(method_id: String) -> String:
@@ -1434,6 +1532,37 @@ func _apply_package_effects(effects: Array, context: Dictionary = {}) -> Diction
 		relationships = _as_dictionary(model.get("relationships", {}))
 		review_answers = _as_dictionary(model.get("review_answers", {}))
 	return result
+
+
+func _execute_analyze_contract(
+	action_id: String,
+	effect_contract_id: String,
+	context: Dictionary
+) -> Dictionary:
+	var subject_id := str(lot_state.get("lot_id", ""))
+	var intent := {
+		"action_id": action_id,
+		"participants": [{
+			"entity_kind": "SUBJECT",
+			"entity_id": subject_id,
+			"semantic_role": "primary_subject"
+		}],
+		"effects": [],
+		"effect_contract_id": effect_contract_id,
+		"resource_cost": {},
+		"context": context.duplicate(true)
+	}
+	var reserved: Dictionary = ActionIntentPipelineScript.reserve_outcome(intent, self, resolver)
+	var reservation_error := str(reserved.get("error", ""))
+	if not reservation_error.is_empty():
+		_fail(reservation_error)
+		return {"ok": false, "error": reservation_error}
+	var applied: Dictionary = ActionIntentPipelineScript.apply_reserved(reserved, self)
+	if not bool(applied.get("ok", false)):
+		var apply_error := str(applied.get("error", "Analyze操作を確定できません"))
+		_fail(apply_error)
+		return {"ok": false, "error": apply_error}
+	return applied
 
 
 func _require_action(action_id: String, context: Dictionary = {}) -> bool:

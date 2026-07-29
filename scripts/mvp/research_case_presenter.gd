@@ -365,7 +365,9 @@ func _label(record: Dictionary, fallback: String = "") -> String:
 
 func _source_filters(sources: Array) -> Array:
 	var presentation := _dictionary(resolver.get_package_section("ui_presentation"))
-	var configured := _array(presentation.get("source_filters", []))
+	var configured := _array(presentation.get("archive_facets", []))
+	if configured.is_empty():
+		configured = _array(presentation.get("source_filters", []))
 	if not configured.is_empty():
 		var result: Array = []
 		for filter_value in configured:

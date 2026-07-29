@@ -362,6 +362,86 @@
       "resource_cost": {}
     }
   ],
+  "followup_routes": [
+    {
+      "id": "followup_past_listing_photos",
+      "legacy_unlock_keys": ["過去の出品写真を調べる"],
+      "label_key": "followup.past_listing_photos",
+      "template_ref": {"action_id": "reinterpret", "route_id": "reinterpret_with_contact"},
+      "source_contradiction_id": "conf_destroyed_vs_auctioned",
+      "slot_patches": {"contact": {"required_capabilities": []}},
+      "repeat_mode": "ONCE"
+    },
+    {
+      "id": "followup_repair_records",
+      "legacy_unlock_keys": ["修復記録を検索する"],
+      "label_key": "followup.repair_records",
+      "template_ref": {"action_id": "reinterpret", "route_id": "reinterpret_with_contact"},
+      "source_contradiction_id": "conf_destroyed_vs_auctioned",
+      "slot_patches": {"contact": {"required_capabilities": []}},
+      "repeat_mode": "ONCE"
+    },
+    {
+      "id": "followup_specialist_inquiry",
+      "legacy_unlock_keys": ["専門家へ照会する"],
+      "label_key": "followup.specialist_inquiry",
+      "template_ref": {"action_id": "reinterpret", "route_id": "reinterpret_with_contact"},
+      "source_contradiction_id": "conf_destroyed_vs_auctioned",
+      "slot_patches": {"contact": {"required_capabilities": []}},
+      "repeat_mode": "ONCE"
+    },
+    {
+      "id": "followup_material_dating",
+      "legacy_unlock_keys": ["材質年代を分析する"],
+      "label_key": "followup.material_dating",
+      "template_ref": {"action_id": "reinterpret", "route_id": "reinterpret_with_contact"},
+      "source_contradiction_id": "conf_guardian_vs_modern_repair",
+      "slot_patches": {"contact": {"required_capabilities": []}},
+      "repeat_mode": "ONCE"
+    },
+    {
+      "id": "followup_seller_questions",
+      "legacy_unlock_keys": ["出品者へ追加質問する"],
+      "label_key": "followup.seller_questions",
+      "template_ref": {"action_id": "reinterpret", "route_id": "reinterpret_with_contact"},
+      "source_contradiction_id": "conf_guardian_vs_modern_repair",
+      "slot_patches": {"contact": {"required_capabilities": []}},
+      "repeat_mode": "ONCE"
+    },
+    {
+      "id": "followup_resonance_test",
+      "legacy_unlock_keys": ["共鳴試験を行う"],
+      "label_key": "followup.resonance_test",
+      "template_ref": {"action_id": "reexamine", "route_id": "reexamine_default"},
+      "source_contradiction_id": "conf_safe_vs_incident",
+      "slot_patches": {
+        "primary_subject": {"required_properties": ["OBSERVED"]},
+        "observation_method": {
+          "required_capabilities": ["reexamination_method", "method:obs_resonance"]
+        }
+      },
+      "context_patch": {"reexamine_dimension": "followup_resonance_test"},
+      "repeat_mode": "ONCE"
+    },
+    {
+      "id": "followup_incident_inquiry",
+      "legacy_unlock_keys": ["事故当事者へ照会する"],
+      "label_key": "followup.incident_inquiry",
+      "template_ref": {"action_id": "reinterpret", "route_id": "reinterpret_with_contact"},
+      "source_contradiction_id": "conf_safe_vs_incident",
+      "slot_patches": {"contact": {"required_capabilities": []}},
+      "repeat_mode": "ONCE"
+    },
+    {
+      "id": "followup_provisional_hazard_grade",
+      "legacy_unlock_keys": ["危険等級を暫定化する"],
+      "label_key": "followup.provisional_hazard_grade",
+      "template_ref": {"action_id": "reinterpret", "route_id": "reinterpret_with_contact"},
+      "source_contradiction_id": "conf_safe_vs_incident",
+      "slot_patches": {"contact": {"required_capabilities": []}},
+      "repeat_mode": "ONCE"
+    }
+  ],
   "initial_state": {
     "lot": {
       "lot_id": "MA-001",
@@ -1179,6 +1259,11 @@
         "過去の出品写真を調べる",
         "修復記録を検索する",
         "専門家へ照会する"
+      ],
+      "followup_route_ids": [
+        "followup_past_listing_photos",
+        "followup_repair_records",
+        "followup_specialist_inquiry"
       ]
     },
     {
@@ -1234,6 +1319,10 @@
       "followup_actions": [
         "材質年代を分析する",
         "出品者へ追加質問する"
+      ],
+      "followup_route_ids": [
+        "followup_material_dating",
+        "followup_seller_questions"
       ]
     },
     {
@@ -1290,6 +1379,11 @@
         "共鳴試験を行う",
         "事故当事者へ照会する",
         "危険等級を暫定化する"
+      ],
+      "followup_route_ids": [
+        "followup_resonance_test",
+        "followup_incident_inquiry",
+        "followup_provisional_hazard_grade"
       ]
     }
   ],
@@ -1785,6 +1879,14 @@
           "action.compare": "比較研究する",
           "action.replicate": "再現実験を行う",
           "action.reinterpret": "再解釈する",
+          "followup.past_listing_photos": "過去の出品写真を調べる",
+          "followup.repair_records": "修復記録を検索する",
+          "followup.specialist_inquiry": "専門家へ照会する",
+          "followup.material_dating": "材質年代を分析する",
+          "followup.seller_questions": "出品者へ追加質問する",
+          "followup.resonance_test": "共鳴試験を行う",
+          "followup.incident_inquiry": "事故当事者へ照会する",
+          "followup.provisional_hazard_grade": "危険等級を暫定化する",
           "observation.obs_visual": "肉眼・拡大観察",
           "observation.obs_residue": "残留物分析",
           "observation.obs_resonance": "共鳴試験",

@@ -83,7 +83,7 @@ func _test_archive_evidence_and_contradiction() -> void:
 		_fail("M40-2: Clipping both sides should make the contradiction available.")
 	if not state.resolve_contradiction("conf_destroyed_vs_auctioned", "別個体"):
 		_fail("M40-2: Player should be able to classify the contradiction cause.")
-	if not state.unlocked_followups.has("過去の出品写真を調べる"):
+	if not state.unlocked_followups.has("followup_past_listing_photos"):
 		_fail("M40-2: Contradiction classification should unlock follow-up research.")
 
 

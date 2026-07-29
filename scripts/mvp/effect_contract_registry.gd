@@ -8,6 +8,10 @@ class_name EffectContractRegistry
 const CREATE_OBSERVATION      := "CREATE_OBSERVATION"
 const CREATE_COMMISSION_ORDER := "CREATE_COMMISSION_ORDER"
 const CREATE_SIGNAL_ANALYSIS  := "CREATE_SIGNAL_ANALYSIS"
+const SEARCH_ARCHIVE          := "SEARCH_ARCHIVE"
+const COMMIT_DOCUMENT         := "COMMIT_DOCUMENT"
+const CLIP_EVIDENCE           := "CLIP_EVIDENCE"
+const RESOLVE_CONTRADICTION   := "RESOLVE_CONTRADICTION"
 
 ## M57 — Long-Term Subject Relation Contracts
 const REEXAMINE_SUBJECT     := "REEXAMINE_SUBJECT"
@@ -33,6 +37,14 @@ static func build_plan(
 			return _build_commission_plan(intent, state, consequence_key, event_id)
 		CREATE_SIGNAL_ANALYSIS:
 			return _build_signal_analysis_plan(intent, state, consequence_key, event_id)
+		SEARCH_ARCHIVE:
+			return _build_archive_search_plan(intent, state)
+		COMMIT_DOCUMENT:
+			return _build_document_commit_plan(intent, state)
+		CLIP_EVIDENCE:
+			return _build_evidence_clip_plan(intent, state)
+		RESOLVE_CONTRADICTION:
+			return _build_contradiction_resolution_plan(intent, state)
 		REEXAMINE_SUBJECT:
 			return _build_reexamine_plan(intent, state, consequence_key, event_id)
 		COMPARE_SUBJECTS:
@@ -43,6 +55,301 @@ static func build_plan(
 			return _build_reinterpret_plan(intent, state, consequence_key, event_id)
 		_:
 			return {"ok": false, "error": "UNKNOWN_EFFECT_CONTRACT: %s" % effect_contract_id}
+
+
+# ── ANALYZE: ARCHIVE / DOCUMENT / EVIDENCE / CONTRADICTION ────────────────────
+
+static func _build_archive_search_plan(intent: Dictionary, state) -> Dictionary:
+	if state == null or state.resolver == null:
+		return {"ok": false, "error": "SEARCH_ARCHIVE requires state and resolver"}
+	var context: Dictionary = intent.get("context", {}) \
+		if typeof(intent.get("context", {})) == TYPE_DICTIONARY else {}
+	if typeof(context.get("tags", null)) != TYPE_ARRAY:
+		return {"ok": false, "error": "ARCHIVE_SEARCH_TAGS_REQUIRED"}
+	var tags: Array = context.get("tags", []).duplicate(true)
+	var results: Array = state.resolver.search_documents(tags)
+	var result_ids: Array = []
+	for result_value in results:
+		if typeof(result_value) != TYPE_DICTIONARY:
+			return {"ok": false, "error": "ARCHIVE_SEARCH_RESULT_INVALID"}
+		var document_id := str((result_value as Dictionary).get("id", ""))
+		if document_id.is_empty():
+			return {"ok": false, "error": "ARCHIVE_SEARCH_RESULT_ID_MISSING"}
+		result_ids.append(document_id)
+	var lot_id := str(state.lot_state.get("lot_id", ""))
+	return {
+		"ok": true,
+		"effects": [{
+			"op": "COMMIT_ARCHIVE_SEARCH",
+			"tags": tags.duplicate(true),
+			"result_ids": result_ids.duplicate(true)
+		}],
+		"semantic_event_ids": [lot_id],
+		"affected_entity_ids": [lot_id] + result_ids,
+		"projection_invalidations": ["archive", "action_candidates"],
+		"trace_payload": {
+			"tags": tags.duplicate(true),
+			"result_ids": result_ids.duplicate(true)
+		},
+		"semantic_effect_count": 1,
+		"final_trace_event_type": "ARCHIVE_SEARCHED",
+		"final_trace_source_id": lot_id,
+		"state_change_reason": "archive",
+		"causal_revision_delta": 0,
+		"final_trace_causal_revision_delta": 0
+	}
+
+
+static func _build_document_commit_plan(intent: Dictionary, state) -> Dictionary:
+	if state == null or state.resolver == null:
+		return {"ok": false, "error": "COMMIT_DOCUMENT requires state and resolver"}
+	var context: Dictionary = intent.get("context", {}) \
+		if typeof(intent.get("context", {})) == TYPE_DICTIONARY else {}
+	var document_id := str(context.get("document_id", ""))
+	if document_id.is_empty() or not state.document_states.has(document_id):
+		return {"ok": false, "error": "UNKNOWN_DOCUMENT: %s" % document_id}
+	if not state.last_search_result_ids.has(document_id):
+		return {"ok": false, "error": "DOCUMENT_NOT_IN_SEARCH_RESULTS: %s" % document_id}
+	var current: Dictionary = state.document_states.get(document_id, {}) \
+		if typeof(state.document_states.get(document_id, {})) == TYPE_DICTIONARY else {}
+	if str(current.get("state", "")) == "COMMITTED":
+		return {"ok": false, "error": "DOCUMENT_ALREADY_COMMITTED: %s" % document_id}
+	var resolved: Dictionary = state.resolver.resolve_document(
+		document_id,
+		state.resolver.get_determinism_version()
+	)
+	if resolved.is_empty() \
+			or typeof(resolved.get("content", null)) != TYPE_DICTIONARY \
+			or str(resolved.get("content_hash", "")).is_empty():
+		return {"ok": false, "error": "DOCUMENT_RESOLUTION_FAILED: %s" % document_id}
+	if state.trace_ledger.deterministic_hash(resolved.get("content", {})) \
+			!= str(resolved.get("content_hash", "")):
+		return {"ok": false, "error": "DOCUMENT_RESOLUTION_HASH_MISMATCH: %s" % document_id}
+	var record := {
+		"state": "COMMITTED",
+		"content_seed": str(resolved.get("content_seed", "")),
+		"content_hash": str(resolved.get("content_hash", "")),
+		"content": (resolved.get("content", {}) as Dictionary).duplicate(true),
+		"metadata": (
+			resolved.get("document", {}) as Dictionary
+		).duplicate(true) if typeof(resolved.get("document", {})) == TYPE_DICTIONARY else {},
+		"committed_tick": int(state.tick) + 2
+	}
+	return {
+		"ok": true,
+		"created_records": [record.duplicate(true)],
+		"effects": [{
+			"op": "COMMIT_DOCUMENT",
+			"document_id": document_id,
+			"record": record
+		}],
+		"semantic_event_ids": [document_id],
+		"affected_entity_ids": [str(state.lot_state.get("lot_id", "")), document_id],
+		"projection_invalidations": ["archive", "research", "action_candidates"],
+		"trace_payload": {
+			"content_seed": record["content_seed"],
+			"content_hash": record["content_hash"]
+		},
+		"semantic_effect_count": 1,
+		"final_trace_event_type": "DOCUMENT_COMMITTED",
+		"final_trace_source_id": document_id,
+		"state_change_reason": "archive",
+		"causal_revision_delta": 1,
+		"final_trace_causal_revision_delta": 0
+	}
+
+
+static func _build_evidence_clip_plan(intent: Dictionary, state) -> Dictionary:
+	if state == null or state.resolver == null:
+		return {"ok": false, "error": "CLIP_EVIDENCE requires state and resolver"}
+	var context: Dictionary = intent.get("context", {}) \
+		if typeof(intent.get("context", {})) == TYPE_DICTIONARY else {}
+	var document_id := str(context.get("document_id", ""))
+	var excerpt_id := str(context.get("excerpt_id", ""))
+	var relation := str(context.get("relation", "UNRESOLVED")).to_upper()
+	if relation not in ["SUPPORT", "CONTRADICT", "CONTEXT", "UNRESOLVED"]:
+		return {"ok": false, "error": "INVALID_EVIDENCE_RELATION: %s" % relation}
+	if not state.document_states.has(document_id):
+		return {"ok": false, "error": "UNKNOWN_DOCUMENT: %s" % document_id}
+	var document_state: Dictionary = state.document_states.get(document_id, {}) \
+		if typeof(state.document_states.get(document_id, {})) == TYPE_DICTIONARY else {}
+	if str(document_state.get("state", "")) != "COMMITTED":
+		return {"ok": false, "error": "DOCUMENT_NOT_COMMITTED: %s" % document_id}
+	if state.has_method("_committed_document_integrity_error"):
+		var integrity_error := str(state._committed_document_integrity_error(
+			document_id,
+			document_state,
+			state.resolver
+		))
+		if not integrity_error.is_empty():
+			return {"ok": false, "error": "DOCUMENT_INTEGRITY_FAILED: %s" % integrity_error}
+	var content: Dictionary = document_state.get("content", {}) \
+		if typeof(document_state.get("content", {})) == TYPE_DICTIONARY else {}
+	var excerpt := _find_document_excerpt(content, excerpt_id)
+	if excerpt.is_empty():
+		return {"ok": false, "error": "UNKNOWN_DOCUMENT_EXCERPT: %s" % excerpt_id}
+	var fallback_candidate_id := "EVID-%s" % excerpt_id
+	var candidate: Dictionary = state.resolver.get_record(
+		"evidence_candidates",
+		fallback_candidate_id
+	)
+	var evidence_id := str(candidate.get("id", fallback_candidate_id))
+	if state.evidence_cards.has(evidence_id):
+		return {"ok": false, "error": "EVIDENCE_ALREADY_CLIPPED: %s" % evidence_id}
+	var metadata: Dictionary = document_state.get("metadata", {}) \
+		if typeof(document_state.get("metadata", {})) == TYPE_DICTIONARY else {}
+	var card := {
+		"evidence_id": evidence_id,
+		"source_id": document_id,
+		"source_title": str(metadata.get("title", "")),
+		"source_type": str(metadata.get("source_type", "")),
+		"excerpt_id": excerpt_id,
+		"quote": str(excerpt.get("text", "")),
+		"source_location": str(excerpt.get("location", "")),
+		"diagnosis_tags": (
+			excerpt.get("diagnosis_tags", []) as Array
+		).duplicate(true) if typeof(excerpt.get("diagnosis_tags", [])) == TYPE_ARRAY else [],
+		"player_relation": relation,
+		"status": str(candidate.get("initial_state", "candidate")),
+		"visibility": str(candidate.get("visibility", "internal")),
+		"evidence_candidate_id": str(candidate.get("id", "")),
+		"content_hash": str(document_state.get("content_hash", "")),
+		"created_tick": int(state.tick) + 2
+	}
+	var contradiction_updates := _contradiction_availability_updates(state, excerpt_id)
+	return {
+		"ok": true,
+		"created_records": [card.duplicate(true)],
+		"effects": [{
+			"op": "COMMIT_EVIDENCE_CLIP",
+			"evidence_id": evidence_id,
+			"card": card,
+			"source_content": content.duplicate(true),
+			"source_content_seed": str(document_state.get("content_seed", "")),
+			"contradiction_updates": contradiction_updates
+		}],
+		"semantic_event_ids": [evidence_id],
+		"affected_entity_ids": [
+			str(state.lot_state.get("lot_id", "")),
+			document_id,
+			evidence_id
+		] + contradiction_updates.keys(),
+		"projection_invalidations": ["research", "clipboard", "action_candidates"],
+		"trace_payload": card.duplicate(true),
+		"semantic_effect_count": 1,
+		"final_trace_event_type": "EVIDENCE_CLIPPED",
+		"final_trace_source_id": evidence_id,
+		"state_change_reason": "research",
+		"causal_revision_delta": 1,
+		"final_trace_causal_revision_delta": 0
+	}
+
+
+static func _build_contradiction_resolution_plan(intent: Dictionary, state) -> Dictionary:
+	if state == null or state.resolver == null:
+		return {"ok": false, "error": "RESOLVE_CONTRADICTION requires state and resolver"}
+	var context: Dictionary = intent.get("context", {}) \
+		if typeof(intent.get("context", {})) == TYPE_DICTIONARY else {}
+	var contradiction_id := str(context.get("contradiction_id", ""))
+	var cause := str(context.get("cause", ""))
+	var definition: Dictionary = state.resolver.get_record("contradictions", contradiction_id)
+	if definition.is_empty() or not state.contradiction_states.has(contradiction_id):
+		return {"ok": false, "error": "UNKNOWN_CONTRADICTION: %s" % contradiction_id}
+	var current: Dictionary = state.contradiction_states.get(contradiction_id, {}) \
+		if typeof(state.contradiction_states.get(contradiction_id, {})) == TYPE_DICTIONARY else {}
+	if str(current.get("status", "")) != "AVAILABLE":
+		return {"ok": false, "error": "CONTRADICTION_NOT_AVAILABLE: %s" % contradiction_id}
+	var allowed_causes: Array = definition.get("allowed_causes", []) \
+		if typeof(definition.get("allowed_causes", [])) == TYPE_ARRAY else []
+	if cause not in allowed_causes:
+		return {"ok": false, "error": "CONTRADICTION_CAUSE_NOT_ALLOWED: %s" % cause}
+	var followup_labels: Array = definition.get("followup_actions", []).duplicate(true) \
+		if typeof(definition.get("followup_actions", [])) == TYPE_ARRAY else []
+	var followups: Array = definition.get("followup_route_ids", followup_labels).duplicate(true) \
+		if typeof(definition.get("followup_route_ids", followup_labels)) == TYPE_ARRAY else followup_labels.duplicate(true)
+	var record := {
+		"status": "RESOLVED" if cause != "未解決" else "ACKNOWLEDGED",
+		"cause": cause,
+		"followup_actions": followups.duplicate(true),
+		"followup_labels": followup_labels.duplicate(true)
+	}
+	var trace_payload := {
+		"cause": cause,
+		"followup_route_ids": followups.duplicate(true),
+		"followup_labels": followup_labels.duplicate(true)
+	}
+	return {
+		"ok": true,
+		"created_records": [record.duplicate(true)],
+		"effects": [{
+			"op": "COMMIT_CONTRADICTION_RESOLUTION",
+			"contradiction_id": contradiction_id,
+			"record": record,
+			"followups": followups.duplicate(true)
+		}],
+		"semantic_event_ids": [contradiction_id],
+		"affected_entity_ids": [
+			str(state.lot_state.get("lot_id", "")),
+			contradiction_id
+		] + followups,
+		"projection_invalidations": ["research", "action_candidates"],
+		"trace_payload": trace_payload,
+		"semantic_effect_count": 1,
+		"final_trace_event_type": "CONTRADICTION_CLASSIFIED",
+		"final_trace_source_id": contradiction_id,
+		"state_change_reason": "research",
+		"causal_revision_delta": 1,
+		"final_trace_causal_revision_delta": 0
+	}
+
+
+static func _find_document_excerpt(content: Dictionary, excerpt_id: String) -> Dictionary:
+	var excerpts_value = content.get("excerpts", [])
+	if typeof(excerpts_value) != TYPE_ARRAY:
+		return {}
+	for excerpt_value in excerpts_value:
+		if typeof(excerpt_value) != TYPE_DICTIONARY:
+			continue
+		var excerpt: Dictionary = excerpt_value
+		if str(excerpt.get("excerpt_id", "")) == excerpt_id:
+			return excerpt
+	return {}
+
+
+static func _contradiction_availability_updates(state, new_excerpt_id: String) -> Dictionary:
+	var clipped_excerpt_ids: Array = []
+	for card_value in state.evidence_cards.values():
+		if typeof(card_value) != TYPE_DICTIONARY:
+			continue
+		var excerpt_id := str((card_value as Dictionary).get("excerpt_id", ""))
+		if not excerpt_id.is_empty() and not clipped_excerpt_ids.has(excerpt_id):
+			clipped_excerpt_ids.append(excerpt_id)
+	if not new_excerpt_id.is_empty() and not clipped_excerpt_ids.has(new_excerpt_id):
+		clipped_excerpt_ids.append(new_excerpt_id)
+	var updates: Dictionary = {}
+	for contradiction_value in state.resolver.get_collection("contradictions"):
+		if typeof(contradiction_value) != TYPE_DICTIONARY:
+			continue
+		var definition: Dictionary = contradiction_value
+		var contradiction_id := str(definition.get("id", ""))
+		if not state.contradiction_states.has(contradiction_id):
+			continue
+		var current: Dictionary = state.contradiction_states.get(contradiction_id, {}) \
+			if typeof(state.contradiction_states.get(contradiction_id, {})) == TYPE_DICTIONARY else {}
+		if str(current.get("status", "")) != "DORMANT":
+			continue
+		var required_ids: Array = definition.get("required_excerpt_ids", []) \
+			if typeof(definition.get("required_excerpt_ids", [])) == TYPE_ARRAY else []
+		var available := true
+		for required_id_value in required_ids:
+			if not clipped_excerpt_ids.has(str(required_id_value)):
+				available = false
+				break
+		if available:
+			var next_state := current.duplicate(true)
+			next_state["status"] = "AVAILABLE"
+			updates[contradiction_id] = next_state
+	return updates
 
 
 # ── CREATE_OBSERVATION ────────────────────────────────────────────────────────
@@ -288,6 +595,13 @@ static func _build_reexamine_plan(intent: Dictionary, state, consequence_key: Di
 	if state == null or state.resolver == null:
 		return {"ok": false, "error": "REEXAMINE_SUBJECT requires state and resolver"}
 	var context: Dictionary = intent.get("context", {}) if typeof(intent.get("context", {})) == TYPE_DICTIONARY else {}
+	var followup_route_error := _followup_route_validation_error(
+		intent,
+		state,
+		REEXAMINE_SUBJECT
+	)
+	if not followup_route_error.is_empty():
+		return {"ok": false, "error": followup_route_error}
 	var subject_id := str(context.get("subject_id", context.get("subject", {}).get("id", state.lot_state.get("lot_id", ""))))
 	if subject_id.is_empty():
 		return {"ok": false, "error": "SUBJECT_ID_REQUIRED"}
@@ -494,6 +808,13 @@ static func _build_reinterpret_plan(intent: Dictionary, state, consequence_key: 
 	if state == null or state.resolver == null:
 		return {"ok": false, "error": "REINTERPRET_EVIDENCE requires state and resolver"}
 	var context: Dictionary = intent.get("context", {}) if typeof(intent.get("context", {})) == TYPE_DICTIONARY else {}
+	var followup_route_error := _followup_route_validation_error(
+		intent,
+		state,
+		REINTERPRET_EVIDENCE
+	)
+	if not followup_route_error.is_empty():
+		return {"ok": false, "error": followup_route_error}
 	var source_evidence_id := str(context.get("source_evidence_id", context.get("evidence_id", "")))
 	if source_evidence_id.is_empty():
 		return {"ok": false, "error": "SOURCE_EVIDENCE_ID_REQUIRED"}
@@ -505,7 +826,9 @@ static func _build_reinterpret_plan(intent: Dictionary, state, consequence_key: 
 	
 	var ev_card: Dictionary = state.evidence_cards[source_evidence_id]
 	var subject_id := str(ev_card.get("subject_id", ev_card.get("lot_id", state.lot_state.get("lot_id", ""))))
-	var inquiry_key := SubjectRelationLayerScript.build_inquiry_key(subject_id, "reinterpret", source_evidence_id)
+	var followup_route_id := str(context.get("followup_route_id", ""))
+	var inquiry_kind := "reinterpret" if followup_route_id.is_empty() else "reinterpret:%s" % followup_route_id
+	var inquiry_key := SubjectRelationLayerScript.build_inquiry_key(subject_id, inquiry_kind, source_evidence_id)
 	if SubjectRelationLayerScript.has_inquiry_key(state.research_threads, inquiry_key):
 		return {"ok": false, "error": "REDUNDANT: %s" % inquiry_key}
 	
@@ -520,6 +843,7 @@ static func _build_reinterpret_plan(intent: Dictionary, state, consequence_key: 
 		"subject_id": subject_id,
 		"source_evidence_id": source_evidence_id,
 		"basis": reinterpretation_basis,
+		"followup_route_id": followup_route_id,
 		"inquiry_key": inquiry_key,
 		"action_event_id": event_id,
 		"committed_tick": int(state.tick) + 2
@@ -544,9 +868,106 @@ static func _build_reinterpret_plan(intent: Dictionary, state, consequence_key: 
 		"semantic_event_ids": [record_id],
 		"affected_entity_ids": [subject_id, record_id],
 		"projection_invalidations": ["subject_relation", "research_thread", "evidence", "action_candidates"],
-		"trace_payload": {"interpretation_id": record_id, "source_evidence_id": source_evidence_id},
+		"trace_payload": {
+			"interpretation_id": record_id,
+			"source_evidence_id": source_evidence_id,
+			"followup_route_id": followup_route_id
+		},
 		"semantic_effect_count": 1
 	}
+
+
+static func _followup_route_validation_error(
+	intent: Dictionary,
+	state,
+	expected_contract_id: String
+) -> String:
+	var context: Dictionary = intent.get("context", {}) \
+		if typeof(intent.get("context", {})) == TYPE_DICTIONARY else {}
+	var route_id := str(context.get("followup_route_id", ""))
+	if route_id.is_empty():
+		return ""
+	var route: Dictionary = state.resolver.get_record("followup_routes", route_id)
+	if route.is_empty():
+		return "FOLLOWUP_ROUTE_UNKNOWN: %s" % route_id
+
+	var template_ref: Dictionary = route.get("template_ref", {}) \
+		if typeof(route.get("template_ref", {})) == TYPE_DICTIONARY else {}
+	var template_action_id := str(template_ref.get("action_id", ""))
+	var template_route_id := str(template_ref.get("route_id", ""))
+	if template_action_id.is_empty() \
+			or template_route_id.is_empty() \
+			or str(intent.get("action_id", "")) != template_action_id:
+		return "FOLLOWUP_ROUTE_TEMPLATE_MISMATCH: %s" % route_id
+	var base_template: Dictionary = {}
+	for template_value in state.resolver.get_collection("action_definitions"):
+		if typeof(template_value) != TYPE_DICTIONARY:
+			continue
+		var candidate: Dictionary = template_value
+		if str(candidate.get("action_id", "")) == template_action_id \
+				and str(candidate.get("route_id", "")) == template_route_id:
+			base_template = candidate
+			break
+	if base_template.is_empty() \
+			or str(base_template.get("effect_contract_id", "")) != expected_contract_id:
+		return "FOLLOWUP_ROUTE_CONTRACT_MISMATCH: %s" % route_id
+
+	var source_contradiction_id := str(route.get("source_contradiction_id", ""))
+	if source_contradiction_id.is_empty() \
+			or str(context.get("source_contradiction_id", "")) != source_contradiction_id:
+		return "FOLLOWUP_ROUTE_SOURCE_MISMATCH: %s" % route_id
+	var source_state: Dictionary = state.contradiction_states.get(
+		source_contradiction_id,
+		{}
+	) if typeof(state.contradiction_states.get(source_contradiction_id, {})) == TYPE_DICTIONARY else {}
+	if str(source_state.get("status", "")) not in ["RESOLVED", "ACKNOWLEDGED"]:
+		return "FOLLOWUP_ROUTE_SOURCE_INACTIVE: %s" % route_id
+
+	var source_definition: Dictionary = state.resolver.get_record(
+		"contradictions",
+		source_contradiction_id
+	)
+	var legacy_keys: Array = route.get("legacy_unlock_keys", []) \
+		if typeof(route.get("legacy_unlock_keys", [])) == TYPE_ARRAY else []
+	var declared_for_source := false
+	var declared_route_ids: Array = source_definition.get("followup_route_ids", []) \
+		if typeof(source_definition.get("followup_route_ids", [])) == TYPE_ARRAY else []
+	if declared_route_ids.has(route_id):
+		declared_for_source = true
+	else:
+		var declared_legacy_keys: Array = source_definition.get("followup_actions", []) \
+			if typeof(source_definition.get("followup_actions", [])) == TYPE_ARRAY else []
+		if declared_legacy_keys.has(route_id):
+			declared_for_source = true
+		else:
+			for legacy_key_value in legacy_keys:
+				if declared_legacy_keys.has(legacy_key_value):
+					declared_for_source = true
+					break
+	if not declared_for_source:
+		return "FOLLOWUP_ROUTE_NOT_DECLARED: %s" % route_id
+
+	var unlocked: bool = state.unlocked_followups.has(route_id)
+	if not unlocked:
+		for legacy_key_value in legacy_keys:
+			if state.unlocked_followups.has(legacy_key_value):
+				unlocked = true
+				break
+	if not unlocked:
+		return "FOLLOWUP_ROUTE_LOCKED: %s" % route_id
+
+	for event_collection_value in [state.pending_action_intents, state.action_events]:
+		if typeof(event_collection_value) != TYPE_DICTIONARY:
+			continue
+		var event_collection: Dictionary = event_collection_value
+		for event_value in event_collection.values():
+			if typeof(event_value) != TYPE_DICTIONARY:
+				continue
+			var event_context: Dictionary = (event_value as Dictionary).get("context", {}) \
+				if typeof((event_value as Dictionary).get("context", {})) == TYPE_DICTIONARY else {}
+			if str(event_context.get("followup_route_id", "")) == route_id:
+				return "FOLLOWUP_ROUTE_ALREADY_RESERVED_OR_APPLIED: %s" % route_id
+	return ""
 
 
 static func _relation_allows_research(relation: Dictionary) -> bool:

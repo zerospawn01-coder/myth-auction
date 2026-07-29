@@ -423,9 +423,19 @@ func _extract_observation_methods(state) -> Array:
 	for value in _get_collection_or_package(state.resolver, "observation_methods"):
 		var method := _as_dict(value)
 		var method_id := str(method.get("id", ""))
-		if method_id.is_empty() or str(state.observation_states.get(method_id, "")) == "COMMITTED":
+		if method_id.is_empty():
 			continue
-		method["capabilities"] = ["observation_method"]
+		# A committed method remains a valid input to long-term re-examination,
+		# but must not re-enable the one-shot observation action.  Capability
+		# tokens let package slots express both constraints without hard-coding a
+		# followup route or action ID into the resolver.
+		var capabilities: Array = [
+			"reexamination_method",
+			"method:%s" % method_id,
+		]
+		if str(state.observation_states.get(method_id, "")) != "COMMITTED":
+			capabilities.append("observation_method")
+		method["capabilities"] = capabilities
 		methods.append(method)
 	return methods
 
@@ -451,7 +461,9 @@ func _get_action_templates(state, custom_templates: Array) -> Array:
 	else:
 		var package_templates := _get_collection_or_package(state.resolver, "action_definitions") if state != null and state.resolver != null else []
 		if not package_templates.is_empty():
-			return package_templates
+			templates.append_array(package_templates)
+			templates.append_array(_unlocked_followup_templates(state, package_templates))
+			return templates
 		# A loaded case package is authoritative. Falling back to MA-001-shaped
 		# builtin contracts here leaks semantic actions into packages that did not
 		# declare them. Builtins remain available only to isolated synthetic tests.
@@ -499,6 +511,74 @@ func _get_action_templates(state, custom_templates: Array) -> Array:
 			"resource_cost": {}
 		})
 	return templates
+
+
+func _unlocked_followup_templates(state, base_templates: Array) -> Array:
+	var templates: Array = []
+	if state == null or state.resolver == null or state.unlocked_followups.is_empty():
+		return templates
+	var route_definitions := _get_collection_or_package(state.resolver, "followup_routes")
+	for definition_value in route_definitions:
+		var definition := _as_dict(definition_value)
+		var route_id := str(definition.get("id", ""))
+		var template_ref := _as_dict(definition.get("template_ref", {}))
+		var base_action_id := str(template_ref.get("action_id", ""))
+		var base_route_id := str(template_ref.get("route_id", ""))
+		if route_id.is_empty() or base_action_id.is_empty() or base_route_id.is_empty():
+			continue
+		if not _followup_route_is_unlocked(state, definition) or _followup_route_completed(state, route_id):
+			continue
+		var base_template: Dictionary = {}
+		for template_value in base_templates:
+			var candidate_template := _as_dict(template_value)
+			if str(candidate_template.get("action_id", "")) == base_action_id \
+					and str(candidate_template.get("route_id", "")) == base_route_id:
+				base_template = candidate_template
+				break
+		if base_template.is_empty():
+			continue
+		var followup_template := base_template.duplicate(true)
+		followup_template["route_id"] = route_id
+		followup_template["label_key"] = str(definition.get("label_key", base_template.get("label_key", "")))
+		var slot_patches := _as_dict(definition.get("slot_patches", {}))
+		var followup_slots: Array = []
+		for slot_value in _as_array(followup_template.get("slots", [])):
+			var slot := _as_dict(slot_value)
+			var slot_id := str(slot.get("slot_id", ""))
+			if slot_patches.has(slot_id):
+				slot.merge(_as_dict(slot_patches[slot_id]), true)
+			followup_slots.append(slot)
+		followup_template["slots"] = followup_slots
+		# A Dictionary is reference-backed in GDScript.  Work on a deep copy so
+		# route-specific context never contaminates the package-owned base route.
+		var followup_context := _as_dict(base_template.get("context", {})).duplicate(true)
+		followup_context.merge(_as_dict(definition.get("context_patch", {})), true)
+		followup_context["followup_route_id"] = route_id
+		followup_context["source_contradiction_id"] = str(definition.get("source_contradiction_id", ""))
+		followup_template["context"] = followup_context
+		templates.append(followup_template)
+	return templates
+
+
+func _followup_route_is_unlocked(state, definition: Dictionary) -> bool:
+	var route_id := str(definition.get("id", ""))
+	if state.unlocked_followups.has(route_id):
+		return true
+	for legacy_key_value in _as_array(definition.get("legacy_unlock_keys", [])):
+		if state.unlocked_followups.has(str(legacy_key_value)):
+			return true
+	return false
+
+
+func _followup_route_completed(state, route_id: String) -> bool:
+	for collection_value in [state.action_events, state.pending_action_intents]:
+		var collection: Dictionary = collection_value if typeof(collection_value) == TYPE_DICTIONARY else {}
+		for event_value in collection.values():
+			var event := _as_dict(event_value)
+			var context := _as_dict(event.get("context", {}))
+			if str(context.get("followup_route_id", "")) == route_id:
+				return true
+	return false
 
 
 func _find_matching_entities(slot: Dictionary, subjects: Array, contacts: Array, tools: Array, observation_methods: Array = [], observations: Array = [], evidence_cards: Array = []) -> Array:
@@ -810,5 +890,12 @@ func _entity_kind_for_role(slots: Array, role_id: String) -> String:
 		var candidate_role := str(slot.get("role", slot.get("semantic_role_id", slot.get("role_id", ""))))
 		if candidate_role == role_id:
 			var kind := str(slot.get("entity_kind", "SUBJECT")).to_upper()
-			return kind if kind in ["SUBJECT", "CONTACT", "TOOL"] else "SUBJECT"
+			return kind if kind in [
+				"SUBJECT",
+				"CONTACT",
+				"TOOL",
+				"OBSERVATION_METHOD",
+				"OBSERVATION",
+				"EVIDENCE",
+			] else "SUBJECT"
 	return "SUBJECT"

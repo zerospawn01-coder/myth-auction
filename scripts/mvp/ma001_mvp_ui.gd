@@ -50,6 +50,8 @@ var archive_results: ItemList
 var archive_detail: RichTextLabel
 var archive_excerpts: VBoxContainer
 var selected_document_id: String = ""
+var rendered_archive_document_id: String = ""
+var rendered_archive_content_hash: String = ""
 var search_button: Button
 var open_document_button: Button
 var search_filter_controls: Dictionary = {}
@@ -394,10 +396,13 @@ func _build_archive_tab() -> Control:
 		_add_option_with_id(option, "指定なし", "")
 		for value in filter_definition.get("options", []):
 			var option_definition: Dictionary = value if typeof(value) == TYPE_DICTIONARY else {"id": str(value), "label": str(value)}
+			var search_tag_id := str(option_definition.get("tag_id", ""))
+			if search_tag_id.is_empty():
+				search_tag_id = str(option_definition.get("id", ""))
 			_add_option_with_id(
 				option,
 				presenter.safe_display_label(option_definition, str(option_definition.get("id", ""))),
-				str(option_definition.get("id", ""))
+				search_tag_id
 			)
 		filters.add_child(_labeled_control(presenter.safe_display_label(filter_definition, filter_id), option))
 		search_filter_controls[filter_id] = option
@@ -762,6 +767,30 @@ func _refresh_observations() -> void:
 
 
 func _refresh_archive() -> void:
+	var selected_id := selected_document_id
+	var desired_ids: Array[String] = []
+	for document_id_value in state.last_search_result_ids:
+		desired_ids.append(str(document_id_value))
+	if _archive_result_ids() != desired_ids:
+		archive_results.clear()
+		for document_id in desired_ids:
+			var definition: Dictionary = presenter.get_record("sources", document_id)
+			archive_results.add_item("%s  |  %s  |  %s" % [
+				presenter.safe_display_label(definition, document_id, document_id),
+				definition.get("source_type", ""),
+				definition.get("copy_state", "")
+			])
+			archive_results.set_item_metadata(archive_results.item_count - 1, document_id)
+	var selected_index := -1
+	for index in range(archive_results.item_count):
+		if str(archive_results.get_item_metadata(index)) == selected_id:
+			selected_index = index
+			break
+	if selected_index >= 0:
+		archive_results.select(selected_index)
+	else:
+		_clear_archive_selection()
+
 	var search_availability := presenter.get_action_availability("search")
 	_set_cta_state(search_button, bool(search_availability.get("allowed", false)), str(search_availability.get("reason", "")), false, false, true)
 	var open_availability := presenter.get_action_availability("research")
@@ -769,8 +798,15 @@ func _refresh_archive() -> void:
 	if bool(open_availability.get("allowed", false)) and selected_document_id.is_empty():
 		open_reason = "資料を1件選択してください"
 	_set_cta_state(open_document_button, bool(open_availability.get("allowed", false)) and not selected_document_id.is_empty(), open_reason)
-	if selected_document_id.is_empty():
-		archive_detail.text = "検索結果はここに表示されます。\n資料を開封すると本文とContent Hashが確定し、以後は変化しません。"
+	if not selected_document_id.is_empty():
+		_render_archive_detail(selected_document_id)
+		var document_state: Dictionary = state.document_states.get(selected_document_id, {})
+		var content_hash := str(document_state.get("content_hash", ""))
+		if str(document_state.get("state", "")) != "COMMITTED":
+			_clear_archive_excerpts()
+		elif rendered_archive_document_id != selected_document_id \
+				or rendered_archive_content_hash != content_hash:
+			_render_archive_excerpts(selected_document_id, document_state)
 
 
 func _refresh_research() -> void:
@@ -809,7 +845,15 @@ func _refresh_research() -> void:
 			for evidence_id in links:
 				summary.append("  %s  →  %s  →  %s" % [evidence_id, _evidence_relation_label(str(links[evidence_id])), hypothesis_label])
 	if not state.unlocked_followups.is_empty():
-		summary.append("\n追加調査：%s" % " / ".join(PackedStringArray(state.unlocked_followups)))
+		var followup_labels := PackedStringArray()
+		for followup_route_id in state.unlocked_followups:
+			var definition: Dictionary = presenter.get_record("followup_routes", str(followup_route_id))
+			followup_labels.append(
+				str(followup_route_id)
+				if definition.is_empty()
+				else presenter.safe_display_label(definition, str(followup_route_id))
+			)
+		summary.append("\n追加調査：%s" % " / ".join(followup_labels))
 	research_summary.text = "\n".join(summary)
 	_refresh_conflicts()
 	_refresh_research_ctas()
@@ -910,7 +954,7 @@ func _refresh_conflicts() -> void:
 	conflict_select.clear()
 	for conflict_id in _sorted_keys(state.contradiction_states):
 		var conflict_state: Dictionary = state.contradiction_states[conflict_id]
-		if str(conflict_state.get("status", "")) in ["AVAILABLE", "ACKNOWLEDGED"]:
+		if str(conflict_state.get("status", "")) == "AVAILABLE":
 			var definition: Dictionary = presenter.get_record("contradictions", conflict_id)
 			_add_option_with_id(conflict_select, presenter.safe_display_label(definition, conflict_id), conflict_id)
 	_select_option_by_id(conflict_select, selected_id)
@@ -1188,26 +1232,23 @@ func _search_archive() -> void:
 		var selected_tag_id := _selected_option_id(option)
 		if not selected_tag_id.is_empty():
 			tags.append(selected_tag_id)
-	var results := state.search_documents(tags)
+	_clear_archive_selection()
 	archive_results.clear()
-	for result_value in results:
-		var result: Dictionary = result_value
-		archive_results.add_item("%s  |  %s  |  %s" % [result.get("title", ""), result.get("source_type", ""), result.get("copy_state", "")])
-		archive_results.set_item_metadata(archive_results.item_count - 1, result.get("id", ""))
+	state.search_documents(tags)
+	_refresh_archive()
 	if archive_results.item_count > 0:
 		archive_results.select(0)
 		_select_archive_result(0)
 
 
 func _select_archive_result(index: int) -> void:
+	if index < 0 or index >= archive_results.item_count:
+		_clear_archive_selection()
+		_refresh_archive()
+		return
 	selected_document_id = str(archive_results.get_item_metadata(index))
+	_clear_archive_excerpts()
 	_refresh_archive()
-	var definition: Dictionary = presenter.get_record("sources", selected_document_id)
-	archive_detail.text = "%s\n資料種別：%s / 関連度：%s / %s\n欠損：%s\n状態：%s" % [
-		definition.get("title", ""), definition.get("source_type", ""), definition.get("relevance", ""), definition.get("copy_state", ""),
-		" / ".join(PackedStringArray(definition.get("missing", []))) if not definition.get("missing", []).is_empty() else "なし",
-		state.document_states.get(selected_document_id, {}).get("state", "UNOPENED")
-	]
 
 
 func _open_selected_document() -> void:
@@ -1217,8 +1258,36 @@ func _open_selected_document() -> void:
 	var opened := state.open_document(selected_document_id)
 	if opened.is_empty():
 		return
-	_clear_children(archive_excerpts)
-	var content: Dictionary = opened.get("content", {})
+	_refresh_archive()
+
+
+func _render_archive_detail(document_id: String) -> void:
+	var definition: Dictionary = presenter.get_record("sources", document_id)
+	var document_state: Dictionary = state.document_states.get(document_id, {})
+	var document_status := str(document_state.get("state", "UNOPENED"))
+	var lines := PackedStringArray([
+		presenter.safe_display_label(definition, document_id, document_id),
+		"資料種別：%s / 関連度：%s / %s" % [
+			definition.get("source_type", ""),
+			definition.get("relevance", ""),
+			definition.get("copy_state", "")
+		],
+		"欠損：%s" % (
+			" / ".join(PackedStringArray(definition.get("missing", [])))
+			if not definition.get("missing", []).is_empty()
+			else "なし"
+		),
+		"状態：%s" % document_status
+	])
+	var content_hash := str(document_state.get("content_hash", ""))
+	if document_status == "COMMITTED" and not content_hash.is_empty():
+		lines.append("Content Hash：%s" % content_hash)
+	archive_detail.text = "\n".join(lines)
+
+
+func _render_archive_excerpts(document_id: String, document_state: Dictionary) -> void:
+	_clear_archive_excerpts()
+	var content: Dictionary = document_state.get("content", {})
 	for excerpt_value in content.get("excerpts", []):
 		var excerpt: Dictionary = excerpt_value
 		var card := _panel()
@@ -1236,9 +1305,40 @@ func _open_selected_document() -> void:
 		meta.add_theme_font_size_override("font_size", 10)
 		box.add_child(meta)
 		var clip_button := _button("研究ノートへコピー")
-		clip_button.pressed.connect(_clip_excerpt.bind(selected_document_id, str(excerpt.get("excerpt_id", ""))))
+		clip_button.pressed.connect(_clip_excerpt.bind(document_id, str(excerpt.get("excerpt_id", ""))))
 		box.add_child(clip_button)
-	archive_detail.text += "\nContent Hash：%s" % _truncate(str(opened.get("content_hash", "")), 18)
+	rendered_archive_document_id = document_id
+	rendered_archive_content_hash = str(document_state.get("content_hash", ""))
+
+
+func _clear_archive_excerpts() -> void:
+	rendered_archive_document_id = ""
+	rendered_archive_content_hash = ""
+	if archive_excerpts != null:
+		_clear_children(archive_excerpts)
+
+
+func _clear_archive_selection() -> void:
+	selected_document_id = ""
+	if archive_results != null:
+		archive_results.deselect_all()
+	_clear_archive_excerpts()
+	if archive_detail != null:
+		if archive_results != null and archive_results.item_count > 0:
+			archive_detail.text = "検索結果から資料を1件選択してください。\n資料を開封すると本文とContent Hashが確定し、以後は変化しません。"
+		elif not state.last_search_tags.is_empty():
+			archive_detail.text = "指定したタグに一致する資料はありません。検索条件を変更してください。"
+		else:
+			archive_detail.text = "検索結果はここに表示されます。\n資料を開封すると本文とContent Hashが確定し、以後は変化しません。"
+
+
+func _archive_result_ids() -> Array[String]:
+	var result_ids: Array[String] = []
+	if archive_results == null:
+		return result_ids
+	for index in range(archive_results.item_count):
+		result_ids.append(str(archive_results.get_item_metadata(index)))
+	return result_ids
 
 
 func _clip_excerpt(document_id: String, excerpt_id: String) -> void:
@@ -1388,7 +1488,7 @@ func _load_game() -> void:
 	if state.load_from_file(presenter.save_slot_path()):
 		_clear_editor_dirty(_editor_dirty.keys())
 		selected_document_id = ""
-		_clear_children(archive_excerpts)
+		_clear_archive_excerpts()
 		_refresh_all()
 		_show_success("案件の全履歴を復元しました")
 

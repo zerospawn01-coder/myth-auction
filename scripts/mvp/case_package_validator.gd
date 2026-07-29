@@ -227,6 +227,14 @@ func validate_package(value: Variant) -> Dictionary:
 	_validate_ui_presentation(package.get("ui_presentation", {}), label_keys, errors)
 	if package.has("action_definitions"):
 		_validate_action_definitions(package.get("action_definitions"), label_keys, errors)
+	if package.has("followup_routes"):
+		_validate_followup_routes(
+			package.get("followup_routes"),
+			package.get("action_definitions", []),
+			package.get("contradictions", []),
+			label_keys,
+			errors
+		)
 	return _result(errors)
 
 
@@ -755,6 +763,243 @@ func _validate_action_definitions(action_definitions_value: Variant, label_keys:
 		
 		if contract_id == "COMPARE_SUBJECTS" and subject_slot_count < 2:
 			_add_error(errors, "action.compare_slots_insufficient", path, "COMPARE_SUBJECTS contract requires at least 2 Subject slots.")
+
+
+func _validate_followup_routes(
+	routes_value: Variant,
+	action_definitions_value: Variant,
+	contradictions_value: Variant,
+	label_keys: Dictionary,
+	errors: Array
+) -> void:
+	if typeof(routes_value) != TYPE_ARRAY:
+		_add_error(errors, "followup_routes.type", "$.followup_routes", "followup_routes must be an Array.")
+		return
+	var base_route_refs: Dictionary = {}
+	var base_templates_by_ref: Dictionary = {}
+	if typeof(action_definitions_value) == TYPE_ARRAY:
+		for definition_value in action_definitions_value:
+			if typeof(definition_value) != TYPE_DICTIONARY:
+				continue
+			var definition: Dictionary = definition_value
+			var base_action_id := _machine_id(definition.get("action_id", ""))
+			var base_route_id := _machine_id(definition.get("route_id", ""))
+			if not base_action_id.is_empty() and not base_route_id.is_empty():
+				var base_ref := "%s::%s" % [base_action_id, base_route_id]
+				base_route_refs[base_ref] = true
+				base_templates_by_ref[base_ref] = definition
+	var route_ids: Dictionary = {}
+	var route_sources: Dictionary = {}
+	var legacy_unlock_keys: Dictionary = {}
+	var legacy_unlock_key_paths: Dictionary = {}
+	var contradiction_ids: Dictionary = {}
+	if typeof(contradictions_value) == TYPE_ARRAY:
+		for contradiction_value in contradictions_value:
+			if typeof(contradiction_value) == TYPE_DICTIONARY:
+				var contradiction_id := _machine_id((contradiction_value as Dictionary).get("id", ""))
+				if not contradiction_id.is_empty():
+					contradiction_ids[contradiction_id] = true
+	var routes: Array = routes_value
+	for index in range(routes.size()):
+		var path := "$.followup_routes[%d]" % index
+		if typeof(routes[index]) != TYPE_DICTIONARY:
+			_add_error(errors, "record.type", path, "Followup route must be a Dictionary.")
+			continue
+		var route: Dictionary = routes[index]
+		var route_id := _machine_id(route.get("id", ""))
+		if route_id.is_empty() or route_ids.has(route_id):
+			_add_error(errors, "followup_route.id_duplicate_or_missing", "%s.id" % path, "Followup route id must be non-empty and unique.")
+		else:
+			route_ids[route_id] = true
+		var aliases_value = route.get("legacy_unlock_keys", [])
+		if typeof(aliases_value) != TYPE_ARRAY:
+			_add_error(errors, "followup_route.legacy_keys_type", "%s.legacy_unlock_keys" % path, "legacy_unlock_keys must be an Array.")
+		else:
+			for alias_index in range((aliases_value as Array).size()):
+				var alias := str((aliases_value as Array)[alias_index]).strip_edges()
+				if alias.is_empty() or legacy_unlock_keys.has(alias):
+					_add_error(errors, "followup_route.legacy_key_duplicate_or_missing", "%s.legacy_unlock_keys[%d]" % [path, alias_index], "Legacy unlock key must be non-empty and unique.")
+				else:
+					legacy_unlock_keys[alias] = route_id
+					legacy_unlock_key_paths[alias] = "%s.legacy_unlock_keys[%d]" % [path, alias_index]
+		var template_action_id := ""
+		var template_route_id := ""
+		var base_template: Dictionary = {}
+		var template_ref_value = route.get("template_ref", null)
+		if typeof(template_ref_value) != TYPE_DICTIONARY:
+			_add_error(errors, "followup_route.template_ref_type", "%s.template_ref" % path, "template_ref must be a Dictionary.")
+		else:
+			var template_ref: Dictionary = template_ref_value
+			template_action_id = _machine_id(template_ref.get("action_id", ""))
+			template_route_id = _machine_id(template_ref.get("route_id", ""))
+			var pair_key := "%s::%s" % [template_action_id, template_route_id]
+			if template_action_id.is_empty() or template_route_id.is_empty() or not base_route_refs.has(pair_key):
+				_add_error(errors, "followup_route.template_unresolved", "%s.template_ref" % path, "Followup route must reference an action_definitions (action_id, route_id) pair.")
+			else:
+				base_template = (base_templates_by_ref[pair_key] as Dictionary)
+			if not route_id.is_empty() \
+					and not template_action_id.is_empty() \
+					and base_route_refs.has("%s::%s" % [template_action_id, route_id]):
+				_add_error(
+					errors,
+					"followup_route.base_route_collision",
+					"%s.id" % path,
+					"Followup route id collides with an action_definitions route for the referenced action."
+				)
+		if route.has("context_patch") and typeof(route.get("context_patch")) != TYPE_DICTIONARY:
+			_add_error(errors, "followup_route.context_patch_type", "%s.context_patch" % path, "context_patch must be a Dictionary.")
+		if route.has("slot_patches"):
+			var slot_patches_value = route.get("slot_patches")
+			if typeof(slot_patches_value) != TYPE_DICTIONARY:
+				_add_error(errors, "followup_route.slot_patches_type", "%s.slot_patches" % path, "slot_patches must be a Dictionary.")
+			else:
+				var base_slot_ids: Dictionary = {}
+				var base_slots_value = base_template.get("slots", [])
+				if typeof(base_slots_value) == TYPE_ARRAY:
+					for base_slot_value in base_slots_value:
+						if typeof(base_slot_value) == TYPE_DICTIONARY:
+							var base_slot_id := _machine_id((base_slot_value as Dictionary).get("slot_id", ""))
+							if not base_slot_id.is_empty():
+								base_slot_ids[base_slot_id] = (base_slot_value as Dictionary)
+				var slot_patches: Dictionary = slot_patches_value
+				for patched_slot_id_value in slot_patches:
+					var patched_slot_id := _machine_id(patched_slot_id_value)
+					var patch_path := "%s.slot_patches.%s" % [path, patched_slot_id]
+					if patched_slot_id.is_empty() or not base_slot_ids.has(patched_slot_id):
+						_add_error(errors, "followup_route.slot_patch_unresolved", patch_path, "slot_patches key must reference a slot in the base template.")
+						continue
+					var patch_value = slot_patches[patched_slot_id_value]
+					if typeof(patch_value) != TYPE_DICTIONARY:
+						_add_error(errors, "followup_route.slot_patch_type", patch_path, "Each slot patch must be a Dictionary.")
+						continue
+					var patch: Dictionary = patch_value
+					for field_value in patch:
+						var field := str(field_value)
+						if field not in [
+							"required_properties",
+							"required_capabilities",
+							"domain_matching",
+							"min_count",
+							"max_count",
+						]:
+							_add_error(errors, "followup_route.slot_patch_field_unsupported", "%s.%s" % [patch_path, field], "Slot identity and unknown fields cannot be patched.")
+					for requirement_field in ["required_properties", "required_capabilities"]:
+						if not patch.has(requirement_field):
+							continue
+						var requirements_value = patch.get(requirement_field)
+						if typeof(requirements_value) != TYPE_ARRAY:
+							_add_error(errors, "followup_route.slot_patch_requirements_type", "%s.%s" % [patch_path, requirement_field], "%s must be an Array." % requirement_field)
+							continue
+						for requirement_index in range((requirements_value as Array).size()):
+							if _machine_id((requirements_value as Array)[requirement_index]).is_empty():
+								_add_error(errors, "followup_route.slot_patch_requirement_empty", "%s.%s[%d]" % [patch_path, requirement_field, requirement_index], "Requirement IDs must be non-empty.")
+					if patch.has("domain_matching") and typeof(patch.get("domain_matching")) != TYPE_BOOL:
+						_add_error(errors, "followup_route.slot_patch_domain_matching_type", "%s.domain_matching" % patch_path, "domain_matching must be a Boolean.")
+					var base_slot: Dictionary = base_slot_ids[patched_slot_id]
+					var patched_min := int(patch.get("min_count", base_slot.get("min_count", 0)))
+					var patched_max := int(patch.get("max_count", base_slot.get("max_count", 1)))
+					if patched_min < 0 or patched_max < patched_min or patched_max > 1:
+						_add_error(errors, "followup_route.slot_patch_count_invalid", patch_path, "Patched slot counts must satisfy 0 <= min_count <= max_count <= 1.")
+		var source_contradiction_id := _machine_id(route.get("source_contradiction_id", ""))
+		if source_contradiction_id.is_empty() or not contradiction_ids.has(source_contradiction_id):
+			_add_error(errors, "followup_route.source_contradiction_unresolved", "%s.source_contradiction_id" % path, "Followup route must reference a declared contradiction.")
+		elif not route_id.is_empty():
+			route_sources[route_id] = source_contradiction_id
+		if str(route.get("repeat_mode", "ONCE")) != "ONCE":
+			_add_error(errors, "followup_route.repeat_mode_unsupported", "%s.repeat_mode" % path, "Only ONCE followup routes are supported.")
+		_validate_key_reference(route, "label_key", path, label_keys, errors)
+		_validate_no_inline_presentation(route, path, errors)
+	for legacy_unlock_key in legacy_unlock_keys:
+		if route_ids.has(legacy_unlock_key):
+			_add_error(
+				errors,
+				"followup_route.unlock_namespace_collision",
+				str(legacy_unlock_key_paths.get(legacy_unlock_key, "$.followup_routes")),
+				"Legacy unlock keys must not collide with canonical followup route IDs."
+			)
+	if typeof(contradictions_value) != TYPE_ARRAY:
+		return
+	for contradiction_index in range((contradictions_value as Array).size()):
+		var contradiction_value = (contradictions_value as Array)[contradiction_index]
+		if typeof(contradiction_value) != TYPE_DICTIONARY:
+			continue
+		var contradiction: Dictionary = contradiction_value
+		var followups_value = contradiction.get("followup_actions", [])
+		if typeof(followups_value) != TYPE_ARRAY:
+			continue
+		var contradiction_id := _machine_id(contradiction.get("id", ""))
+		var followups: Array = followups_value
+		var mapped_route_ids: Array[String] = []
+		for followup_index in range(followups.size()):
+			var unlock_key := str(followups[followup_index])
+			var mapped_route_id := unlock_key if route_ids.has(unlock_key) else str(legacy_unlock_keys.get(unlock_key, ""))
+			if mapped_route_id.is_empty():
+				_add_error(
+					errors,
+					"followup_route.unlock_key_unresolved",
+					"$.contradictions[%d].followup_actions[%d]" % [contradiction_index, followup_index],
+					"Contradiction followup action has no followup_routes mapping."
+				)
+			elif str(route_sources.get(mapped_route_id, "")) != contradiction_id:
+				_add_error(
+					errors,
+					"followup_route.unlock_key_source_mismatch",
+					"$.contradictions[%d].followup_actions[%d]" % [contradiction_index, followup_index],
+					"Contradiction followup action maps to a route owned by another contradiction."
+				)
+			elif mapped_route_ids.has(mapped_route_id):
+				_add_error(
+					errors,
+					"followup_route.unlock_key_duplicate",
+					"$.contradictions[%d].followup_actions[%d]" % [contradiction_index, followup_index],
+					"Contradiction followup actions must not map to the same route more than once."
+				)
+			else:
+				mapped_route_ids.append(mapped_route_id)
+		# Packages without followup_route_ids remain valid through the explicit
+		# legacy_unlock_keys bridge.  When canonical IDs are declared, however,
+		# require an exact one-to-one mapping so State cannot silently drop or add
+		# a route at contradiction resolution time.
+		if not contradiction.has("followup_route_ids"):
+			continue
+		var route_ids_value = contradiction.get("followup_route_ids", [])
+		if typeof(route_ids_value) != TYPE_ARRAY:
+			_add_error(errors, "followup_route.ids_type", "$.contradictions[%d].followup_route_ids" % contradiction_index, "followup_route_ids must be an Array.")
+			continue
+		var declared_route_ids: Array[String] = []
+		for route_index in range((route_ids_value as Array).size()):
+			var route_id := _machine_id((route_ids_value as Array)[route_index])
+			if declared_route_ids.has(route_id):
+				_add_error(
+					errors,
+					"followup_route.id_duplicate",
+					"$.contradictions[%d].followup_route_ids[%d]" % [contradiction_index, route_index],
+					"Contradiction followup route IDs must be unique."
+				)
+				continue
+			declared_route_ids.append(route_id)
+			if not route_ids.has(route_id) or str(route_sources.get(route_id, "")) != contradiction_id:
+				_add_error(
+					errors,
+					"followup_route.id_unresolved",
+					"$.contradictions[%d].followup_route_ids[%d]" % [contradiction_index, route_index],
+					"Contradiction followup route does not reference a matching followup_routes record."
+				)
+			elif not mapped_route_ids.has(route_id):
+				_add_error(
+					errors,
+					"followup_route.id_without_unlock_key",
+					"$.contradictions[%d].followup_route_ids[%d]" % [contradiction_index, route_index],
+					"Contradiction followup route has no matching followup_actions entry."
+				)
+		for mapped_route_id in mapped_route_ids:
+			if not declared_route_ids.has(mapped_route_id):
+				_add_error(
+					errors,
+					"followup_route.id_missing",
+					"$.contradictions[%d].followup_route_ids" % contradiction_index,
+					"followup_route_ids must contain every route mapped from followup_actions."
+				)
 
 
 

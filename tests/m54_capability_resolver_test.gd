@@ -192,10 +192,20 @@ func _run() -> void:
 	# Reserve outcome via M53
 	var reserved7: Dictionary = PipelineScript.reserve_outcome(intent7, state7, state7.resolver)
 	_assert_true(reserved7.get("error", "") == "", "C7: M53 reserve_outcome must succeed: %s" % str(reserved7.get("error", "")))
+	_assert_true(
+		state7.pending_action_intents.has(str(reserved7.get("event_id", ""))),
+		"C7: committed reservation must exist before apply: event=%s pending=%s" % [
+			str(reserved7.get("event_id", "")),
+			str(state7.pending_action_intents.keys())
+		]
+	)
 
 	# Apply reserved via M53
 	var apply7: Dictionary = PipelineScript.apply_reserved(reserved7, state7)
-	_assert_true(bool(apply7.get("ok", false)), "C7: M53 apply_reserved must succeed")
+	_assert_true(
+		bool(apply7.get("ok", false)),
+		"C7: M53 apply_reserved must succeed: %s" % str(apply7.get("error", ""))
+	)
 	_assert_true(state7.trace_ledger.verify_chain(), "C7: TraceLedger chain must verify after execution")
 
 	# ── Case 8: UI Presentation Independence ────────────────────────────────
@@ -384,6 +394,86 @@ func _run() -> void:
 			str(run14_b[idx14].get("discovery_state", "")),
 			"C14: discovery_state at index %d must match after mutation" % idx14
 		)
+
+	# ── Case 15: Participant provenance preserves non-Subject slot kinds ───────
+	print("  Case 15: Typed participant provenance")
+	var state15 = _fresh_state()
+	_assert_true(state15 != null and state15.receive_lot(), "C15: state must initialize and receive the lot")
+	if state15 != null:
+		state15.observations["OBS-TYPED"] = {
+			"observation_id": "OBS-TYPED",
+			"method_id": "obs_visual",
+			"state": "COMMITTED"
+		}
+		state15.evidence_cards["EVID-TYPED"] = {
+			"evidence_id": "EVID-TYPED",
+			"source_id": "DOC-MA001-001"
+		}
+		var template15 := {
+			"action_id": "typed_participant_probe",
+			"route_id": "typed_participant_probe_default",
+			"slots": [
+				{
+					"slot_id": "primary_subject",
+					"semantic_role_id": "primary_subject",
+					"role": "primary_subject",
+					"entity_kind": "SUBJECT",
+					"min_count": 1,
+					"max_count": 1,
+					"allow": "ALLOW",
+					"discovery_state": "DISCOVERED"
+				},
+				{
+					"slot_id": "observation_method",
+					"semantic_role_id": "observation_method",
+					"role": "observation_method",
+					"entity_kind": "OBSERVATION_METHOD",
+					"min_count": 1,
+					"max_count": 1,
+					"allow": "ALLOW",
+					"required_capabilities": ["observation_method"],
+					"discovery_state": "DISCOVERED"
+				},
+				{
+					"slot_id": "source_observation",
+					"semantic_role_id": "source_observation",
+					"role": "source_observation",
+					"entity_kind": "OBSERVATION",
+					"min_count": 1,
+					"max_count": 1,
+					"allow": "ALLOW",
+					"discovery_state": "DISCOVERED"
+				},
+				{
+					"slot_id": "source_evidence",
+					"semantic_role_id": "source_evidence",
+					"role": "source_evidence",
+					"entity_kind": "EVIDENCE",
+					"min_count": 1,
+					"max_count": 1,
+					"allow": "ALLOW",
+					"discovery_state": "DISCOVERED"
+				}
+			],
+			"predicates": {},
+			"effects": [],
+			"resource_cost": {}
+		}
+		var candidates15 := ResolverScript.new().resolve_candidates(state15, [template15])
+		var candidate15 := _find_candidate(candidates15, "typed_participant_probe")
+		_assert_equal(
+			str(candidate15.get("discovery_state", "")),
+			ResolverScript.AVAILABLE,
+			"C15: typed participant probe must be AVAILABLE"
+		)
+		var kinds_by_role: Dictionary = {}
+		for participant_value in candidate15.get("participants", []):
+			var participant: Dictionary = participant_value
+			kinds_by_role[str(participant.get("semantic_role", ""))] = str(participant.get("entity_kind", ""))
+		_assert_equal(kinds_by_role.get("primary_subject", ""), "SUBJECT", "C15: Subject kind must be preserved")
+		_assert_equal(kinds_by_role.get("observation_method", ""), "OBSERVATION_METHOD", "C15: Observation Method kind must be preserved")
+		_assert_equal(kinds_by_role.get("source_observation", ""), "OBSERVATION", "C15: Observation kind must be preserved")
+		_assert_equal(kinds_by_role.get("source_evidence", ""), "EVIDENCE", "C15: Evidence kind must be preserved")
 
 	_finish()
 

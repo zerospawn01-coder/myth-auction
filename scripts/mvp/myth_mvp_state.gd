@@ -11,8 +11,10 @@ const ActionIntentPipelineScript = preload("res://scripts/mvp/action_intent_pipe
 const SAVE_SCHEMA_VERSION := 2
 const LEGACY_SAVE_SCHEMA_VERSION := 1
 const DEFAULT_PACKAGE_SETTING := "myth_auction/default_case_package"
-const EVIDENCE_RELATIONS := ["SUPPORT", "CONTRADICT", "CONTEXT", "UNRESOLVED"]
-const AUDIT_DECISIONS := ["ACCEPT", "REQUEST_EXPLANATION", "REANALYZE", "EXCLUDE"]
+const EVIDENCE_RELATIONS := ["SUPPORTING", "CONTRADICTORY", "UNRESOLVED"]
+const AUDIT_DECISIONS := ["ACCEPT", "EXCLUDE", "REQUEST_EXPLANATION", "REANALYZE"]
+const VALID_CLAIM_TYPES := ["GENUINE_RELIC", "MODERN_REPLICA", "ANOMALOUS_OBJECT", "FORGERY_CONTRABAND", "HAZARDOUS_CONTAINED"]
+const VALID_HAZARD_CLASSES := ["CLASS_0_SAFE", "CLASS_1_MINOR", "CLASS_2_HAZARDOUS", "CLASS_3_CRITICAL"]
 
 signal state_changed(section: String)
 signal operation_failed(reason: String)
@@ -542,7 +544,7 @@ func audit_commission(commission_id: String, decisions: Dictionary = {}) -> Dict
 	return commission.duplicate(true)
 
 
-func set_claim(claim_text: String, warrant: String, evidence_ids: Array, scope: String = "限定的") -> bool:
+func set_claim(claim_text: String, warrant: String, evidence_ids: Array, scope: String = "限定的", claim_type: String = "GENUINE_RELIC", predicted_hazard_class: String = "CLASS_0_SAFE") -> bool:
 	if not _require_action("edit_review"):
 		return false
 	var normalized_evidence_ids := _unique_string_array(evidence_ids)
@@ -562,12 +564,55 @@ func set_claim(claim_text: String, warrant: String, evidence_ids: Array, scope: 
 		"warrant": warrant.strip_edges(),
 		"evidence_ids": normalized_evidence_ids,
 		"unresolved_conflicts": unresolved,
-		"scope": scope
+		"scope": scope,
+		"claim_type": claim_type.to_upper(),
+		"predicted_hazard_class": predicted_hazard_class.to_upper()
 	}
 	_invalidate_review_answers()
 	_trace("RESEARCH_CLAIM_UPDATED", str(lot_state.get("lot_id", "")), claim)
 	state_changed.emit("review")
 	return true
+
+
+func validate_claim_schema(target_claim: Dictionary = {}) -> Dictionary:
+	var c := target_claim if not target_claim.is_empty() else claim
+	var errors: Array = []
+
+	var claim_text := str(c.get("claim_text", "")).strip_edges()
+	if claim_text.length() < 15:
+		errors.append("研究主張テキストが短すぎます (最低15文字必要)")
+
+	var warrant := str(c.get("warrant", "")).strip_edges()
+	if warrant.length() < 15:
+		errors.append("EvidenceとClaimを接続するWarrantが不足しています (最低15文字必要)")
+
+	var mapped_ids := _to_string_array(c.get("evidence_ids", []))
+	if mapped_ids.is_empty():
+		errors.append("主張へ対応付けられた証拠 (Evidence) がありません")
+
+	for evidence_id in mapped_ids:
+		if not _is_claim_source_valid(evidence_id):
+			errors.append("主張が失われた、または存在しない証拠を参照しています: %s" % evidence_id)
+		elif _commission_evidence_has_unresolved_audit(evidence_id):
+			errors.append("未解決の委託監査報告を出品根拠に使用しています: %s" % evidence_id)
+
+	var claim_type := str(c.get("claim_type", "GENUINE_RELIC")).to_upper()
+	if not c.get("claim_type", "").is_empty() and claim_type not in VALID_CLAIM_TYPES:
+		errors.append("不正な鑑定主張タイプです: %s" % claim_type)
+
+	var hazard_class := str(c.get("predicted_hazard_class", "CLASS_0_SAFE")).to_upper()
+	if not c.get("predicted_hazard_class", "").is_empty() and hazard_class not in VALID_HAZARD_CLASSES:
+		errors.append("不正な予測危険クラスです: %s" % hazard_class)
+
+	return {
+		"valid": errors.is_empty(),
+		"errors": errors,
+		"claim_text": claim_text,
+		"warrant": warrant,
+		"evidence_ids": mapped_ids,
+		"claim_type": claim_type,
+		"predicted_hazard_class": hazard_class
+	}
 
 
 func update_listing(patch: Dictionary) -> bool:

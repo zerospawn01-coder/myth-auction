@@ -128,8 +128,16 @@ func is_action_available(action_id: String, context: Dictionary = {}) -> bool:
 	return bool(get_action_availability(action_id, context).get("allowed", false))
 
 
+## O3 — Reactive recalculation entry point.
+## Called on every view_model rebuild triggered by state.state_changed.
+## resolve_candidates() is a full recompute from state; no cache is held here.
+## The signal chain is:
+##   state.state_changed → _forward_state_change → view_changed(get_view_model())
+##   → get_action_candidates() → resolve_candidates(state)
 func get_action_candidates() -> Array:
 	if not _bound or state == null:
+		return []
+	if resolver == null or str(state.episode_id).is_empty():
 		return []
 	return _capability_resolver.resolve_candidates(state)
 
@@ -293,6 +301,9 @@ func save_slot_path() -> String:
 	return "user://%s_research_case.json" % safe_id
 
 
+## O3 — Triggered by every state.state_changed(section) signal.
+## Unconditionally rebuilds view_model so action_candidates reflect latest state.
+## All sections ("observation", "action_intent", "research", etc.) trigger recalc.
 func _forward_state_change(_section: String) -> void:
 	view_changed.emit(get_view_model())
 

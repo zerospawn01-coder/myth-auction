@@ -22,6 +22,7 @@ const GateScript       = preload("res://scripts/mvp/action_gate.gd")
 const MA001_PATH := "res://data/episodes/ma001.json"
 
 var _failures: Array[String] = []
+var _c13_view_changed_count: int = 0
 
 
 func _initialize() -> void:
@@ -257,7 +258,114 @@ func _run() -> void:
 	_assert_true(not gate11.get("missing_requirements", []).is_empty(), "C11: missing requirements must be attached to gate result")
 	_assert_true(not gate11.get("remediation_action_ids", []).is_empty(), "C11: remediation IDs must be attached")
 
+	# ── Case 12: Dynamic recalculation after state mutation ─────────────────────
+	# O3: Verifies that resolve_candidates() returns a fresh result reflecting the
+	# new state after a state-mutating operation. Simulates the recalculation that
+	# _forward_state_change() triggers on every state.state_changed signal.
+	print("  Case 12: Dynamic recalculation after state mutation")
+	var state12 = _fresh_state()
+	state12.receive_lot()
+	state12.resources["gold"] = 1000
+	state12.resolver.package["contractors"] = []
+	state12.resolver.package["tools"] = []
+	var resolver12 = ResolverScript.new()
+
+	# Snapshot A: no contact, no tool — ANALYZE_SIGNAL must be LOCKED
+	var cands12_a: Array = resolver12.resolve_candidates(state12)
+	var cand12_a := _find_candidate(cands12_a, "ANALYZE_SIGNAL")
+	_assert_true(
+		cand12_a.is_empty() or str(cand12_a.get("discovery_state", "")) == ResolverScript.LOCKED,
+		"C12: ANALYZE_SIGNAL must be LOCKED or absent before state mutation"
+	)
+
+	# Mutate state: add matching contact and tool (simulates effect of an action)
+	state12.lot_state["properties"] = ["SIGNAL_EMITTER"]
+	state12.lot_state["domain"] = "occult"
+	state12.resolver.package["contractors"] = [
+		{"id": "analyst_alpha", "capabilities": ["signal_analysis"], "supported_domains": ["occult"]}
+	]
+	state12.resolver.package["tools"] = [
+		{"id": "scanner_01", "capabilities": ["frequency_scanner"]}
+	]
+
+	# Snapshot B: same resolver instance, same state object — must reflect mutation
+	var cands12_b: Array = resolver12.resolve_candidates(state12)
+	var cand12_b := _find_candidate(cands12_b, "ANALYZE_SIGNAL")
+	_assert_true(not cand12_b.is_empty(), "C12: ANALYZE_SIGNAL must appear after property added")
+	_assert_equal(
+		str(cand12_b.get("discovery_state", "")), ResolverScript.AVAILABLE,
+		"C12: ANALYZE_SIGNAL must be AVAILABLE after state mutation"
+	)
+	# Confirm snapshot A did not retroactively change (resolve_candidates is pure)
+	_assert_true(
+		cand12_a.is_empty() or str(cand12_a.get("discovery_state", "")) == ResolverScript.LOCKED,
+		"C12: Snapshot A must be unaffected by mutation (pure function)"
+	)
+
+	# ── Case 13: state_changed signal chain drives view_model recalculation ─────
+	# O3: Connects state.state_changed → presenter._forward_state_change →
+	#     view_changed(get_view_model()) → get_action_candidates() → resolve_candidates().
+	# Uses a signal counter to confirm the chain fires on every state mutation.
+	print("  Case 13: state_changed signal chain drives view_model recalculation")
+	const PresenterScript = preload("res://scripts/mvp/research_case_presenter.gd")
+	var state13 = StateScript.new()
+	# Initialize without erasing action_definitions to test with package content
+	if not state13.initialize(MA001_PATH):
+		_fail("C13: fresh state13 failed — " + state13.last_error)
+	else:
+		var presenter13 = PresenterScript.new()
+		if not presenter13.bind(state13, MA001_PATH):
+			_fail("C13: presenter13 bind failed")
+		else:
+			# Confirm signal is connected (O3 null guard prerequisite)
+			_assert_true(
+				state13.state_changed.is_connected(Callable(presenter13, "_forward_state_change")),
+				"C13: state.state_changed must be connected to presenter._forward_state_change after bind()"
+			)
+
+			# Count view_changed emissions via member variable (GDScript lambda capture is read-only)
+			_c13_view_changed_count = 0
+			presenter13.view_changed.connect(_c13_on_view_changed)
+
+			# Mutate state — this should emit state_changed("intake") → trigger view_changed
+			var lot_ok := state13.receive_lot()
+			_assert_true(lot_ok, "C13: receive_lot() must succeed on UNRECEIVED state")
+			_assert_true(_c13_view_changed_count >= 1,
+				"C13: view_changed must fire at least once after receive_lot()"
+			)
+
+			# A second emission must also trigger another recalc
+			var count_before := _c13_view_changed_count
+			state13.state_changed.emit("research")
+			_assert_true(_c13_view_changed_count > count_before,
+				"C13: view_changed must fire again after subsequent state_changed emission"
+			)
+			presenter13.view_changed.disconnect(_c13_on_view_changed)
+
+	# ── Case 14: Post-transition determinism ────────────────────────────────────
+	# O3: After a dynamic state mutation, consecutive resolve_candidates() calls on
+	# the same (mutated) state must yield identical, ordered results.
+	print("  Case 14: Post-transition determinism")
+	# Re-use state12 which was already mutated with contact + tool
+	var run14_a: Array = resolver12.resolve_candidates(state12)
+	var run14_b: Array = resolver12.resolve_candidates(state12)
+	_assert_equal(run14_a.size(), run14_b.size(),
+		"C14: Candidate count must be deterministic after state mutation"
+	)
+	for idx14 in range(run14_a.size()):
+		_assert_equal(
+			str(run14_a[idx14].get("canonical_action_key", "")),
+			str(run14_b[idx14].get("canonical_action_key", "")),
+			"C14: canonical_action_key at index %d must match after mutation" % idx14
+		)
+		_assert_equal(
+			str(run14_a[idx14].get("discovery_state", "")),
+			str(run14_b[idx14].get("discovery_state", "")),
+			"C14: discovery_state at index %d must match after mutation" % idx14
+		)
+
 	_finish()
+
 
 
 func _fresh_state():
@@ -302,3 +410,8 @@ func _finish() -> void:
 	for f in _failures:
 		print("FAILURE: %s" % f)
 	quit(1)
+
+
+## C13 counter callback — member method avoids GDScript lambda read-only capture.
+func _c13_on_view_changed(_vm: Dictionary) -> void:
+	_c13_view_changed_count += 1

@@ -86,6 +86,16 @@ func _run() -> void:
 	var gold_before := int(ui.state.resources.get("gold", 0))
 	ui.state.submit_review()
 	_expect(int(ui.state.resources.get("gold", 0)) == gold_before, "Review evaluation has no resource side effect")
+	_expect(
+		ui.state.set_claim(
+			"再評価が必要となる更新済みの鑑定主張テキストである。",
+			"同じEvidenceを使うが論拠を更新したため再審査が必要である。",
+			["EVID-EX-MA001-001A"]
+		),
+		"Claim remains editable after review"
+	)
+	_expect(ui.state.review_decision.is_empty(), "Claim edit invalidates stale ReviewDecision")
+	_expect(_only_kinds(ui.state.get_available_dispositions(), ["HOLD"]), "Invalidated review fails closed to HOLD")
 	ui.queue_free()
 
 	if failures.is_empty():

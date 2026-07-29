@@ -1621,6 +1621,7 @@ func _exclude_commission_evidence_from_claim() -> void:
 
 
 func _invalidate_review_answers() -> void:
+	review_decision.clear()
 	for question_id in review_answers:
 		review_answers[question_id] = {"answer_id": "", "passed": false, "reason": "主張または説明の更新により再審査が必要"}
 

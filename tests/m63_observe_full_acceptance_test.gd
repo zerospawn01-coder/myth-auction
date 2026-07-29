@@ -10,6 +10,7 @@
 extends SceneTree
 
 const SCENE := preload("res://scenes/mvp/ma001_mvp.tscn")
+const VISUAL_LOG_DIR := "res://tests/visual_log"
 
 var failures: Array[String] = []
 var pass_count: int = 0
@@ -40,6 +41,11 @@ func _run() -> void:
 	_expect(ui.tabs != null, "TabContainer exists in 480x854 UI layout")
 	_expect(ui.clipboard_panel != null, "Clipboard panel exists in 480x854 UI layout")
 	_expect(ui.subject_status_label != null, "Subject status label exists in 480x854 UI layout")
+	var viewport_rect := Rect2(Vector2.ZERO, Vector2(root.size))
+	_expect(viewport_rect.encloses(ui.get_global_rect()), "Main UI remains inside the 480x854 viewport")
+	_expect(viewport_rect.encloses(ui.tabs.get_global_rect()), "TabContainer remains inside the 480x854 viewport")
+	_expect(ui.find_children("*", "ScrollContainer", true, false).size() >= 6, "All workflow tabs provide scrollable content")
+	await _capture_visual_log("o6_480x854_initial.png")
 
 	# ── Step 2: Wired UI Intake Execution ────────────────────────────────────
 	print("  Step 2: Execute Intake via Wired UI Control")
@@ -77,6 +83,9 @@ func _run() -> void:
 	_expect(ui.observation_log.text.find("縁の補修材") >= 0, "Observation log contains findings (縁の補修材)")
 	_expect(ui.clipboard_toggle.text.find("観1") >= 0, "Clipboard toggle counter reprojects 1 observation")
 	_expect(ui.clipboard_toggle.text.find("証2") >= 0, "Clipboard toggle counter reprojects 2 evidence cards")
+	ui.tabs.current_tab = 1
+	await process_frame
+	await _capture_visual_log("o6_480x854_observed.png")
 
 	# ── Step 5: Verify Candidate List Reprojection & Trace Integrity ──────────
 	print("  Step 5: Verify Dynamic Candidate List Reprojection & Trace Integrity")
@@ -106,3 +115,15 @@ func _expect(condition: bool, message: String) -> void:
 		pass_count += 1
 	else:
 		failures.append(message)
+
+
+func _capture_visual_log(file_name: String) -> void:
+	if not OS.get_cmdline_user_args().has("--write-visual-log"):
+		return
+	await process_frame
+	await process_frame
+	var absolute_dir := ProjectSettings.globalize_path(VISUAL_LOG_DIR)
+	DirAccess.make_dir_recursive_absolute(absolute_dir)
+	var image := root.get_texture().get_image()
+	var error := image.save_png(absolute_dir.path_join(file_name))
+	_expect(error == OK, "Visual Log saved: %s" % file_name)

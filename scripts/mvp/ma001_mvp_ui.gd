@@ -227,7 +227,7 @@ func _build_ui() -> void:
 	page.add_child(clipboard_panel)
 	var clipboard_box := VBoxContainer.new()
 	clipboard_panel.add_child(clipboard_box)
-	clipboard_toggle = _button("📎 クリップボード 0  ▾")
+	clipboard_toggle = _button("CLIP クリップボード 0  ▾")
 	clipboard_toggle.custom_minimum_size.y = 40
 	clipboard_toggle.pressed.connect(_toggle_clipboard)
 	clipboard_box.add_child(clipboard_toggle)
@@ -1103,7 +1103,7 @@ func _refresh_clipboard() -> void:
 		])
 	clipboard_label.text = "\n".join(lines) if not lines.is_empty() else "証拠カード、観察記録、未処理の矛盾がここへ残ります。"
 	if clipboard_toggle != null:
-		clipboard_toggle.set_meta("base_text", "📎 クリップ %d｜観%d 証%d 報%d 矛%d  %s" % [
+		clipboard_toggle.set_meta("base_text", "CLIP クリップ %d｜観%d 証%d 報%d 矛%d  %s" % [
 			items.size(), counts["OBSERVATION"], counts["EVIDENCE"], counts["REPORT"], counts["CONFLICT"],
 			"▴" if clipboard_expanded else "▾"
 		])

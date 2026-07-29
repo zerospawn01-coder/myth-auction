@@ -23,6 +23,7 @@ const MA001_PATH := "res://data/episodes/ma001.json"
 
 var _failures: Array[String] = []
 var _c13_view_changed_count: int = 0
+var _c13_last_view_model: Dictionary = {}
 
 
 func _initialize() -> void:
@@ -323,15 +324,30 @@ func _run() -> void:
 				"C13: state.state_changed must be connected to presenter._forward_state_change after bind()"
 			)
 
-			# Count view_changed emissions via member variable (GDScript lambda capture is read-only)
+			# Capture emissions via member variables (GDScript lambda capture is read-only).
 			_c13_view_changed_count = 0
+			_c13_last_view_model = {}
 			presenter13.view_changed.connect(_c13_on_view_changed)
 
 			# Mutate state — this should emit state_changed("intake") → trigger view_changed
+			var candidates_before13: Array = presenter13.get_view_model()\
+				.get("screens", {}).get("resolution", {}).get("action_candidates", [])
 			var lot_ok := state13.receive_lot()
 			_assert_true(lot_ok, "C13: receive_lot() must succeed on UNRECEIVED state")
 			_assert_true(_c13_view_changed_count >= 1,
 				"C13: view_changed must fire at least once after receive_lot()"
+			)
+			var emitted_candidates13: Array = _c13_last_view_model\
+				.get("screens", {}).get("resolution", {}).get("action_candidates", [])
+			var recomputed_candidates13: Array = presenter13.get_action_candidates()
+			_assert_true(
+				emitted_candidates13 != candidates_before13,
+				"C13: emitted action_candidates must reflect the lot-state transition"
+			)
+			_assert_equal(
+				emitted_candidates13,
+				recomputed_candidates13,
+				"C13: emitted action_candidates must equal a direct post-transition recomputation"
 			)
 
 			# A second emission must also trigger another recalc
@@ -339,6 +355,11 @@ func _run() -> void:
 			state13.state_changed.emit("research")
 			_assert_true(_c13_view_changed_count > count_before,
 				"C13: view_changed must fire again after subsequent state_changed emission"
+			)
+			_assert_equal(
+				_c13_last_view_model.get("screens", {}).get("resolution", {}).get("action_candidates", []),
+				presenter13.get_action_candidates(),
+				"C13: every subsequent emission must carry current action_candidates"
 			)
 			presenter13.view_changed.disconnect(_c13_on_view_changed)
 
@@ -415,3 +436,4 @@ func _finish() -> void:
 ## C13 counter callback — member method avoids GDScript lambda read-only capture.
 func _c13_on_view_changed(_vm: Dictionary) -> void:
 	_c13_view_changed_count += 1
+	_c13_last_view_model = _vm.duplicate(true)

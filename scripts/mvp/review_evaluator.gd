@@ -120,7 +120,7 @@ func evaluate_submission(facts: RefCounted) -> RefCounted:
 	# Determine Review Decision: PASS / CONDITIONAL / REJECT
 	var has_underdisclosure: bool = decision.reason_codes.has(&"KNOWN_HAZARD_UNDERDISCLOSED")
 	var unresolved_conflicts: Array = facts.get("unresolved_contradictions")
-	var has_unresolved_conflicts := not unresolved_conflicts.is_empty()
+	var has_unresolved_conflicts: bool = not unresolved_conflicts.is_empty()
 	var claim_text: String = str(facts.get("claim_text"))
 	var warrant: String = str(facts.get("warrant"))
 	var has_sufficient_evidence: bool = decision.evidence_ids.size() > 0 and (claim_text.length() >= 15 and warrant.length() >= 15)

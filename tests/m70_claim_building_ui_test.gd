@@ -51,14 +51,16 @@ func _run() -> void:
 	ui._mark_editor_dirty(ui.warrant_edit)
 
 	ui._select_option_by_id(ui.claim_type_select, "MODERN_REPLICA")
+	ui._mark_editor_dirty(ui.claim_type_select)
 	ui._select_option_by_id(ui.predicted_hazard_select, "CLASS_1_MINOR")
+	ui._mark_editor_dirty(ui.predicted_hazard_select)
 
 	# Select evidence card in UI ItemList
 	_expect(ui.claim_evidence_list.item_count > 0, "Claim evidence list populated with available evidence")
 	if ui.claim_evidence_list.item_count > 0:
 		ui.claim_evidence_list.select(0)
 
-	ui._refresh_claim_validation()
+	ui._on_claim_evidence_selected(0, true)
 	await process_frame
 
 	_expect(ui.claim_validation_label.text.find("Validator PASS") >= 0, "Realtime claim validation label reflects PASS state")
@@ -77,6 +79,11 @@ func _run() -> void:
 	_expect(str(ui.state.claim.get("claim_type", "")) == "MODERN_REPLICA", "claim_type persisted in state")
 	_expect(str(ui.state.claim.get("predicted_hazard_class", "")) == "CLASS_1_MINOR", "predicted_hazard_class persisted in state")
 	_expect(ui.state.claim.get("evidence_ids", []).size() > 0, "evidence_ids persisted in state")
+	var trace_count: int = ui.state.trace_ledger.entries.size()
+	var previous_claim: Dictionary = ui.state.claim.duplicate(true)
+	_expect(not ui.state.set_claim("短い", "これも短い", ui.state.claim.get("evidence_ids", [])), "Invalid claim is rejected by set_claim")
+	_expect(ui.state.claim == previous_claim, "Rejected claim leaves state unchanged atomically")
+	_expect(ui.state.trace_ledger.entries.size() == trace_count, "Rejected claim emits no update trace")
 
 	# ── Step 4: Save & Load Round-Trip Integrity for Claim State ──────────────
 	print("  Step 4: Save & Load Round-Trip Integrity for Claim State")

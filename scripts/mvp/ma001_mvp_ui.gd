@@ -563,6 +563,7 @@ func _build_review_tab() -> Control:
 		{"id": "FORGERY_CONTRABAND", "label": "偽作・密売品"},
 		{"id": "HAZARDOUS_CONTAINED", "label": "危険封印対象"}
 	])
+	_register_claim_option(claim_type_select)
 	body.add_child(claim_type_select)
 
 	_add_heading(body, "PREDICTED HAZARD／予測危険クラス", 16)
@@ -573,6 +574,7 @@ func _build_review_tab() -> Control:
 		{"id": "CLASS_2_HAZARDOUS", "label": "Class-2 (危険・取扱注意)"},
 		{"id": "CLASS_3_CRITICAL", "label": "Class-3 (極秘・壊滅的)"}
 	])
+	_register_claim_option(predicted_hazard_select)
 	body.add_child(predicted_hazard_select)
 
 	_add_heading(body, "CLAIM／主張", 16)
@@ -1043,41 +1045,9 @@ func _refresh_commission_actions() -> void:
 func _refresh_review() -> void:
 	_sync_editor_text(claim_edit, str(state.claim.get("claim_text", "")))
 	_sync_editor_text(warrant_edit, str(state.claim.get("warrant", "")))
-	if claim_type_select != null:
-		_select_option_by_id(claim_type_select, str(state.claim.get("claim_type", "GENUINE_RELIC")))
-	if predicted_hazard_select != null:
-		_select_option_by_id(predicted_hazard_select, str(state.claim.get("predicted_hazard_class", "CLASS_0_SAFE")))
-
-	_refresh_claim_validation()
-
+	_sync_option_selection(claim_type_select, str(state.claim.get("claim_type", "GENUINE_RELIC")))
+	_sync_option_selection(predicted_hazard_select, str(state.claim.get("predicted_hazard_class", "CLASS_0_SAFE")))
 	_sync_editor_text(authenticity_edit, str(state.listing.get("authenticity", "")))
-
-
-func _refresh_claim_validation() -> void:
-	if claim_validation_label == null or state == null:
-		return
-	var ids: Array = []
-	if claim_evidence_list != null:
-		for index in claim_evidence_list.get_selected_items():
-			ids.append(str(claim_evidence_list.get_item_metadata(index)))
-	var c_type := _selected_option_id(claim_type_select) if claim_type_select != null else "GENUINE_RELIC"
-	if c_type.is_empty(): c_type = "GENUINE_RELIC"
-	var p_haz := _selected_option_id(predicted_hazard_select) if predicted_hazard_select != null else "CLASS_0_SAFE"
-	if p_haz.is_empty(): p_haz = "CLASS_0_SAFE"
-
-	var draft_claim := {
-		"claim_text": claim_edit.text if claim_edit != null else "",
-		"warrant": warrant_edit.text if warrant_edit != null else "",
-		"evidence_ids": ids,
-		"claim_type": c_type,
-		"predicted_hazard_class": p_haz
-	}
-	var val_res := state.validate_claim_schema(draft_claim)
-	if bool(val_res.get("valid", false)):
-		claim_validation_label.text = "[color=#55bb55]主張構造：正常 (Validator PASS)[/color]"
-	else:
-		var err_text := "\n・".join(PackedStringArray(val_res.get("errors", [])))
-		claim_validation_label.text = "[color=#ff6666]主張構造エラー：\n・%s[/color]" % err_text
 	_sync_editor_text(period_edit, str(state.listing.get("estimated_period", "")))
 	_sync_editor_text(hazard_edit, str(state.listing.get("hazard_disclosure", "")))
 	_sync_editor_text(unknowns_edit, "、".join(PackedStringArray(state.listing.get("unknowns", []))))
@@ -1110,9 +1080,11 @@ func _refresh_claim_validation() -> void:
 	var edit_allowed := presenter.is_action_available("edit_review")
 	for editor in [claim_edit, warrant_edit, authenticity_edit, period_edit, hazard_edit, unknowns_edit, restrictions_edit, sales_restrictions_edit]:
 		editor.editable = edit_allowed
+	claim_type_select.disabled = not edit_allowed
+	predicted_hazard_select.disabled = not edit_allowed
 	sales_restriction_policy.disabled = not edit_allowed
 	var edit_availability := presenter.get_action_availability("edit_review")
-	_set_cta_state(save_claim_button, edit_allowed, str(edit_availability.get("reason", "")), false, false, true)
+	_refresh_claim_validation()
 	_set_cta_state(save_listing_button, edit_allowed, str(edit_availability.get("reason", "")))
 	for question_id in review_controls:
 		review_controls[question_id]["option"].disabled = not edit_allowed
@@ -1129,6 +1101,38 @@ func _refresh_claim_validation() -> void:
 		)
 	var auction_availability := presenter.get_action_availability("auction")
 	_set_cta_state(auction_button, bool(auction_availability.get("allowed", false)), str(auction_availability.get("reason", "")), false, false, true)
+
+
+func _refresh_claim_validation() -> void:
+	if claim_validation_label == null or state == null:
+		return
+	var ids: Array = []
+	if claim_evidence_list != null:
+		for index in claim_evidence_list.get_selected_items():
+			ids.append(str(claim_evidence_list.get_item_metadata(index)))
+	var c_type := _selected_option_id(claim_type_select)
+	var p_haz := _selected_option_id(predicted_hazard_select)
+	var result := state.validate_claim_schema({
+		"claim_text": claim_edit.text if claim_edit != null else "",
+		"warrant": warrant_edit.text if warrant_edit != null else "",
+		"evidence_ids": ids,
+		"claim_type": c_type,
+		"predicted_hazard_class": p_haz
+	})
+	var valid := bool(result.get("valid", false))
+	var edit_availability := presenter.get_action_availability("edit_review")
+	var edit_allowed := bool(edit_availability.get("allowed", false))
+	if valid:
+		claim_validation_label.text = "[color=#55bb55]主張構造：正常 (Validator PASS)[/color]"
+	else:
+		var err_text := "\n・".join(PackedStringArray(result.get("errors", [])))
+		claim_validation_label.text = "[color=#ff6666]主張構造エラー：\n・%s[/color]" % err_text
+	var reason := str(edit_availability.get("reason", ""))
+	if edit_allowed and not valid:
+		reason = " / ".join(PackedStringArray(result.get("errors", [])))
+	# Action capability remains the CTA's authoritative availability contract.
+	# Invalid drafts are fail-closed by set_claim() and explained inline here.
+	_set_cta_state(save_claim_button, edit_allowed, reason, false, false, true)
 
 
 func _refresh_action_candidates() -> void:
@@ -1502,7 +1506,7 @@ func _save_claim() -> void:
 	if p_haz.is_empty(): p_haz = "CLASS_0_SAFE"
 
 	if state.set_claim(claim_edit.text, warrant_edit.text, ids, "限定条件下", c_type, p_haz):
-		_clear_editor_dirty([claim_edit, warrant_edit])
+		_clear_editor_dirty([claim_edit, warrant_edit, claim_type_select, predicted_hazard_select])
 		_show_success("研究主張を保存しました。説明変更後は再審査が必要です")
 
 
@@ -1767,9 +1771,16 @@ func _register_draft_editor(editor: Control) -> void:
 		(editor as LineEdit).text_changed.connect(func(_value: String): _mark_editor_dirty(editor))
 
 
+func _register_claim_option(option: OptionButton) -> void:
+	_editor_dirty[option] = false
+	option.item_selected.connect(func(_index: int): _mark_editor_dirty(option))
+
+
 func _mark_editor_dirty(editor: Control) -> void:
 	if not _syncing_editors:
 		_editor_dirty[editor] = true
+		if editor in [claim_edit, warrant_edit, claim_type_select, predicted_hazard_select]:
+			_refresh_claim_validation()
 
 
 func _sync_editor_text(editor: Control, value: String) -> void:
@@ -1777,6 +1788,14 @@ func _sync_editor_text(editor: Control, value: String) -> void:
 		return
 	_syncing_editors = true
 	editor.set("text", value)
+	_syncing_editors = false
+
+
+func _sync_option_selection(option: OptionButton, item_id: String) -> void:
+	if option == null or bool(_editor_dirty.get(option, false)):
+		return
+	_syncing_editors = true
+	_select_option_by_id(option, item_id)
 	_syncing_editors = false
 
 

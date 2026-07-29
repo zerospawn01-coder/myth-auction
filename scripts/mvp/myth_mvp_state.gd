@@ -548,15 +548,12 @@ func set_claim(claim_text: String, warrant: String, evidence_ids: Array, scope: 
 	if not _require_action("edit_review"):
 		return false
 	var normalized_evidence_ids := _unique_string_array(evidence_ids)
-	for evidence_id in normalized_evidence_ids:
-		if not _is_claim_source_valid(evidence_id):
-			return _fail("主張が存在しない証拠を参照しています: %s" % evidence_id)
 	var unresolved: Array = []
 	for contradiction_id in contradiction_states:
 		var status := str(contradiction_states[contradiction_id].get("status", ""))
 		if status in ["AVAILABLE", "ACKNOWLEDGED"]:
 			unresolved.append(str(contradiction_id))
-	claim = {
+	var candidate := {
 		"claim_id": str(claim.get("claim_id", _default_claim_definition().get("id", ""))),
 		"status": "submitted",
 		"visibility": str(claim.get("visibility", _default_claim_definition().get("visibility", "private"))),
@@ -568,6 +565,10 @@ func set_claim(claim_text: String, warrant: String, evidence_ids: Array, scope: 
 		"claim_type": claim_type.to_upper(),
 		"predicted_hazard_class": predicted_hazard_class.to_upper()
 	}
+	var validation := validate_claim_schema(candidate)
+	if not bool(validation.get("valid", false)):
+		return _fail("研究主張の形式が不正です: %s" % " / ".join(PackedStringArray(validation.get("errors", []))))
+	claim = candidate
 	_invalidate_review_answers()
 	_trace("RESEARCH_CLAIM_UPDATED", str(lot_state.get("lot_id", "")), claim)
 	state_changed.emit("review")

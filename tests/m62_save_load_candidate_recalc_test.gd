@@ -13,6 +13,7 @@ const SAVE_PATH := "user://test_o5_candidate_recalc.json"
 
 var failures: Array[String] = []
 var pass_count: int = 0
+var load_signal_seen := false
 
 
 func _initialize() -> void:
@@ -47,8 +48,8 @@ func _run() -> void:
 	# ── Step 2: Verify Snapshot Non-Redundancy (Candidate Non-Persistence) ─────
 	print("  Step 2: Inspect Snapshot for Candidate Non-Persistence")
 	var snapshot: Dictionary = ui.state.to_dictionary()
-	_expect(not snapshot.has("action_candidates"), "Snapshot does NOT contain 'action_candidates' key")
-	_expect(not snapshot.has("candidates"), "Snapshot does NOT contain 'candidates' key")
+	_expect(not _contains_key_recursive(snapshot, "action_candidates"), "Snapshot contains no nested 'action_candidates' key")
+	_expect(not _contains_key_recursive(snapshot, "candidates"), "Snapshot contains no nested 'candidates' key")
 	_expect(snapshot.has("lot_state"), "Snapshot contains canonical 'lot_state'")
 	_expect(snapshot.has("observations"), "Snapshot contains canonical 'observations'")
 	_expect(snapshot.has("trace_ledger"), "Snapshot contains canonical 'trace_ledger'")
@@ -78,18 +79,30 @@ func _run() -> void:
 	var save_ok: bool = ui.state.save_to_file(SAVE_PATH)
 	_expect(save_ok, "State saved to file successfully")
 	_expect(FileAccess.file_exists(SAVE_PATH), "Save file exists on disk")
+	var saved_json: Variant = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
+	_expect(typeof(saved_json) == TYPE_DICTIONARY, "Saved file contains a JSON object")
+	_expect(not _contains_key_recursive(saved_json, "action_candidates"), "Saved JSON contains no nested 'action_candidates' key")
+	_expect(not _contains_key_recursive(saved_json, "candidates"), "Saved JSON contains no nested 'candidates' key")
+
+	# Move live state away from the saved snapshot so load must perform a real restore.
+	ui.state.lot_state["status"] = "UNRECEIVED"
+	ui.state.state_changed.emit("o5_test_mutation")
+	await process_frame
+	var mutated_cands: Array = ui.presenter.get_action_candidates()
+	_expect(
+		_candidate_fingerprints(mutated_cands) != _candidate_fingerprints(presenter_cands_before),
+		"Live candidates differ after the deliberate post-save mutation"
+	)
 
 	# ── Step 5: Load State & Verify Reactive Candidate Recalculation ────────────
 	print("  Step 5: Load State & Verify Reactive Recalculation")
+	load_signal_seen = false
+	ui.state.state_changed.connect(_on_state_changed)
 	var load_ok: bool = ui.state.load_from_file(SAVE_PATH)
 	_expect(load_ok, "State loaded from file successfully")
-
-	# Trigger UI refresh as done in _load_game
-	ui._clear_editor_dirty(ui._editor_dirty.keys())
-	ui.selected_document_id = ""
-	ui._clear_children(ui.archive_excerpts)
-	ui._refresh_all()
 	await process_frame
+	_expect(load_signal_seen, "load_from_file emits state_changed(\"load\")")
+	ui.state.state_changed.disconnect(_on_state_changed)
 
 	# Verify Presenter dynamically recomputed Candidates from canonical state
 	var presenter_cands_after: Array = ui.presenter.get_action_candidates()
@@ -119,7 +132,7 @@ func _run() -> void:
 
 	# ── Step 6: Verify Secondary Action Continuability & Trace Integrity ───────
 	print("  Step 6: Execute Secondary Action Post-Load & Verify Trace Integrity")
-	ui._search_archive()
+	ui.search_button.pressed.emit()
 	await process_frame
 
 	_expect(ui.archive_results.item_count > 0, "Archive search operates correctly post-load")
@@ -148,3 +161,34 @@ func _expect(condition: bool, message: String) -> void:
 		pass_count += 1
 	else:
 		failures.append(message)
+
+
+func _contains_key_recursive(value: Variant, forbidden_key: String) -> bool:
+	if typeof(value) == TYPE_DICTIONARY:
+		var dictionary: Dictionary = value
+		if dictionary.has(forbidden_key):
+			return true
+		for child in dictionary.values():
+			if _contains_key_recursive(child, forbidden_key):
+				return true
+	elif typeof(value) == TYPE_ARRAY:
+		for child in value:
+			if _contains_key_recursive(child, forbidden_key):
+				return true
+	return false
+
+
+func _candidate_fingerprints(candidates: Array) -> Array[String]:
+	var fingerprints: Array[String] = []
+	for candidate_value in candidates:
+		var candidate: Dictionary = candidate_value
+		fingerprints.append("%s|%s" % [
+			str(candidate.get("canonical_action_key", "")),
+			str(candidate.get("discovery_state", ""))
+		])
+	return fingerprints
+
+
+func _on_state_changed(section: String) -> void:
+	if section == "load":
+		load_signal_seen = true

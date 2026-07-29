@@ -16,11 +16,18 @@ const AUDIT_DECISIONS := ["ACCEPT", "EXCLUDE", "REQUEST_EXPLANATION", "REANALYZE
 const VALID_CLAIM_TYPES := ["GENUINE_RELIC", "MODERN_REPLICA", "ANOMALOUS_OBJECT", "FORGERY_CONTRABAND", "HAZARDOUS_CONTAINED"]
 const VALID_HAZARD_CLASSES := ["CLASS_0_SAFE", "CLASS_1_MINOR", "CLASS_2_HAZARDOUS", "CLASS_3_CRITICAL"]
 
+const ReviewFactSnapshotScript := preload("res://scripts/mvp/review_fact_snapshot.gd")
+const ReviewEvaluatorScript := preload("res://scripts/mvp/review_evaluator.gd")
+const ReviewDecisionScript := preload("res://scripts/mvp/review_decision.gd")
+
 signal state_changed(section: String)
 signal operation_failed(reason: String)
 
 var resolver = ContentResolverScript.new()
 var trace_ledger = TraceLedgerScript.new()
+
+var review_decision: Dictionary = {}
+var review_history: Array = []
 
 var episode_id: String = ""
 var tick: int = 0
@@ -145,6 +152,8 @@ func initialize(package_path: String = "") -> bool:
 		if not listing.has(field_id):
 			listing[field_id] = listing_defaults[field_id]
 	review_answers.clear()
+	review_decision.clear()
+	review_history.clear()
 	for question_value in resolver.get_collection("review_questions"):
 		var question: Dictionary = question_value
 		review_answers[str(question.get("id", ""))] = {
@@ -630,6 +639,92 @@ func update_listing(patch: Dictionary) -> bool:
 	return true
 
 
+func set_review_answer(question_id: String, answer_id: String) -> bool:
+	return not answer_review(question_id, answer_id).is_empty()
+
+
+func create_review_fact_snapshot() -> RefCounted:
+	var snap = ReviewFactSnapshotScript.new()
+	snap.case_id = StringName(str(lot_state.get("lot_id", "")))
+	snap.case_revision = int(lot_state.get("revision", 1))
+	snap.claim_revision = int(claim.get("revision", 1))
+	snap.disclosure_revision = int(listing.get("revision", 1))
+
+	snap.claim_type_id = StringName(str(claim.get("claim_type", "GENUINE_RELIC")))
+	snap.predicted_hazard_class = StringName(str(claim.get("predicted_hazard_class", "CLASS_0_SAFE")))
+	snap.claim_text = str(claim.get("claim_text", ""))
+	snap.warrant = str(claim.get("warrant", ""))
+
+	snap.known_hazard_tags = _to_string_array(lot_state.get("known_hazard_tags", []))
+
+	for evidence_id in _to_string_array(claim.get("evidence_ids", [])):
+		if evidence_cards.has(evidence_id):
+			snap.evidence_facts.append(evidence_cards[evidence_id].duplicate(true))
+
+	for obs_id in observations:
+		snap.observation_facts.append(observations[obs_id].duplicate(true))
+
+	for comm_id in commissions:
+		snap.commission_facts.append(commissions[comm_id].duplicate(true))
+		var report: Dictionary = commissions[comm_id].get("report", {})
+		if not report.is_empty():
+			snap.audit_facts.append(report.duplicate(true))
+
+	for contra_id in contradiction_states:
+		if str(contradiction_states[contra_id].get("status", "")) != "RESOLVED":
+			snap.unresolved_contradictions.append(contradiction_states[contra_id].duplicate(true))
+
+	snap.disclosure_hazard_ids = _to_string_array(listing.get("hazard_disclosure_ids", []))
+	snap.disclosure_details = _as_dictionary(listing.get("hazard_disclosure_details", {})).duplicate(true)
+	snap.review_answers = review_answers.duplicate(true)
+	return snap
+
+
+func submit_review(expected_revision: int = -1) -> Dictionary:
+	if not _require_action("edit_review"):
+		return {}
+	var current_rev := int(lot_state.get("revision", 1))
+	if expected_revision >= 0 and expected_revision != current_rev:
+		_fail("Claim revisionが古いため提出できません (TOCTOU拒否)")
+		return {}
+
+	var schema_res := validate_claim_schema()
+	if not bool(schema_res.get("valid", false)):
+		_fail("Claim構造エラーのため提出できません")
+		return {}
+
+	var snapshot = create_review_fact_snapshot()
+	var evaluator = ReviewEvaluatorScript.new()
+	var decision = evaluator.evaluate_submission(snapshot)
+
+	var decision_id := "DEC-%s-%03d" % [str(lot_state.get("lot_id", "LOT")), review_history.size() + 1]
+	decision.decision_id = StringName(decision_id)
+	decision.submission_id = StringName("SUB-%03d" % [review_history.size() + 1])
+
+	var decision_dict := {
+		"decision_id": str(decision.decision_id),
+		"submission_id": str(decision.submission_id),
+		"decision": str(decision.decision),
+		"assessed_hazard_class": str(decision.assessed_hazard_class),
+		"hazard_qualifier": str(decision.hazard_qualifier),
+		"assessment_state": str(decision.assessment_state),
+		"reason_codes": _to_string_array(decision.reason_codes),
+		"required_remediation_ids": _to_string_array(decision.required_remediation_ids),
+		"evaluated_case_revision": decision.evaluated_case_revision,
+		"claim_revision": decision.claim_revision,
+		"disclosure_revision": decision.disclosure_revision
+	}
+	decision_dict["evidence_ids"] = _to_string_array(decision.evidence_ids)
+	decision_dict["observation_ids"] = _to_string_array(decision.observation_ids)
+	decision_dict["audit_report_ids"] = _to_string_array(decision.audit_report_ids)
+	review_decision = decision_dict.duplicate(true)
+	review_history.append(decision_dict.duplicate(true))
+
+	_trace("RESEARCH_REVIEW_SUBMITTED", str(lot_state.get("lot_id", "")), decision_dict)
+	state_changed.emit("review")
+	return decision_dict
+
+
 func answer_review(question_id: String, answer_id: String) -> Dictionary:
 	if not _require_action("edit_review"):
 		return {}
@@ -916,6 +1011,8 @@ func to_dictionary() -> Dictionary:
 		"claim": claim.duplicate(true),
 		"listing": listing.duplicate(true),
 		"review_answers": review_answers.duplicate(true),
+		"review_decision": review_decision.duplicate(true),
+		"review_history": review_history.duplicate(true),
 		"disposition": disposition.duplicate(true),
 		"auction_result": auction_result.duplicate(true),
 		"resources": resources.duplicate(true),
@@ -970,6 +1067,10 @@ func load_from_dictionary(snapshot: Dictionary) -> bool:
 			return _fail("セーブ項目が破損しています: %s" % array_key)
 	if candidate_snapshot.has("action_record_links") and typeof(candidate_snapshot.get("action_record_links")) != TYPE_ARRAY:
 		return _fail("セーブ項目が破損しています: action_record_links")
+	if candidate_snapshot.has("review_decision") and typeof(candidate_snapshot.get("review_decision")) != TYPE_DICTIONARY:
+		return _fail("セーブ項目が破損しています: review_decision")
+	if candidate_snapshot.has("review_history") and typeof(candidate_snapshot.get("review_history")) != TYPE_ARRAY:
+		return _fail("セーブ項目が破損しています: review_history")
 	if not _is_integral_number(candidate_snapshot.get("tick", null)) \
 			or not _is_integral_number(candidate_snapshot.get("next_commission_sequence", null)):
 		return _fail("セーブの連番情報が破損しています")
@@ -1007,6 +1108,8 @@ func load_from_dictionary(snapshot: Dictionary) -> bool:
 	claim = candidate_snapshot["claim"].duplicate(true)
 	listing = candidate_snapshot["listing"].duplicate(true)
 	review_answers = candidate_snapshot["review_answers"].duplicate(true)
+	review_decision = _as_dictionary(candidate_snapshot.get("review_decision", {})).duplicate(true)
+	review_history = candidate_snapshot.get("review_history", []).duplicate(true) if typeof(candidate_snapshot.get("review_history", [])) == TYPE_ARRAY else []
 	disposition = candidate_snapshot["disposition"].duplicate(true)
 	auction_result = candidate_snapshot["auction_result"].duplicate(true)
 	resources = candidate_snapshot["resources"].duplicate(true)

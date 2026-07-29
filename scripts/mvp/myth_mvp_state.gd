@@ -820,6 +820,8 @@ func get_action_availability(action_id: String, context: Dictionary = {}) -> Dic
 				reason = "同じ処分がすでに記録されています"
 			elif definition.is_empty():
 				reason = "不明な処分です"
+			elif not _disposition_review_failure(definition).is_empty():
+				reason = _disposition_review_failure(definition)
 			elif not _predicate_evaluator.evaluate(definition.get("requires", {}), _facts(), {"disposition": definition}):
 				reason = "案件状態がこの処分の条件を満たしていません"
 			elif bool(definition.get("requires_gate", false)) and not get_listing_gate_failures().is_empty():
@@ -907,6 +909,37 @@ func decide_disposition(disposition_id: String) -> bool:
 	_trace("DISPOSITION_DECIDED", disposition_id, disposition)
 	state_changed.emit("review")
 	return true
+
+
+## Returns package dispositions permitted by the current immutable
+## ReviewDecision. This uses the same policy helper as ActionGate.
+func get_available_dispositions() -> Array:
+	var permitted: Array = []
+	for disposition_value in resolver.get_collection("dispositions"):
+		var definition: Dictionary = disposition_value
+		if _disposition_review_failure(definition).is_empty():
+			permitted.append(definition.duplicate(true))
+	return permitted
+
+
+func _disposition_review_failure(definition: Dictionary) -> String:
+	var kind := str(definition.get("kind", ""))
+	var requires_restrictions := bool(definition.get("requires_restrictions", false))
+	if review_decision.is_empty():
+		return "" if kind == "HOLD" else "処分前に審査提出が必要です"
+	var decision := str(review_decision.get("decision", "REJECT"))
+	var hazard_class := str(review_decision.get("assessed_hazard_class", "UNASSESSED"))
+	if hazard_class in ["UNASSESSED", "CLASS_3_CRITICAL"] and kind != "HOLD":
+		return "未評価または重大危険の対象は研究保留のみ選択できます"
+	if hazard_class == "CLASS_2_HAZARDOUS" and (kind != "HOLD" and not (kind == "LIST" and requires_restrictions)):
+		return "Class-2対象は条件付き出品または研究保留のみ選択できます"
+	if hazard_class == "CLASS_1_MINOR" and kind == "LIST" and not requires_restrictions:
+		return "Class-1対象の出品には取扱条件が必要です"
+	if decision == "REJECT" and kind not in ["HOLD", "RETURN"]:
+		return "審査REJECTのため出品処分を選択できません"
+	if decision == "CONDITIONAL" and kind == "LIST" and not requires_restrictions:
+		return "条件付き審査では通常出品を選択できません"
+	return ""
 
 
 func run_auction() -> Dictionary:

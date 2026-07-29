@@ -142,10 +142,10 @@ func _run() -> void:
 	await process_frame
 
 	# Attempt submit_review without setting valid claim schema -> ActionGate Rejection
-	var trace_count_before: int = ui.state.trace_ledger.entries.size()
+	var trace_count_before: int = ui.state.trace_ledger.get_entries().size()
 	var bad_sub: Dictionary = ui.state.submit_review()
 	_expect(bad_sub.is_empty(), "submit_review rejected when claim schema invalid (ActionGate)")
-	_expect(ui.state.trace_ledger.entries.size() == trace_count_before, "No Trace event recorded on submission rejection")
+	_expect(ui.state.trace_ledger.get_entries().size() == trace_count_before, "No Trace event recorded on submission rejection")
 	_expect(ui.state.review_decision.is_empty(), "No ReviewDecision created on submission rejection")
 
 	# ── Test 10: State Integration — TOCTOU Revision Guard ───────────────────
@@ -168,7 +168,7 @@ func _run() -> void:
 	_expect(not valid_sub.is_empty(), "submit_review succeeded for valid claim")
 	_expect(str(valid_sub.get("decision", "")) in ["PASS", "CONDITIONAL", "REJECT"], "Valid decision string returned")
 	_expect(not ui.state.review_decision.is_empty(), "State review_decision populated post-submission")
-	_expect(ui.state.trace_ledger.entries.size() > trace_count_before, "RESEARCH_REVIEW_SUBMITTED Trace event recorded")
+	_expect(ui.state.trace_ledger.get_entries().size() > trace_count_before, "RESEARCH_REVIEW_SUBMITTED Trace event recorded")
 	for field_id in ["decision", "assessed_hazard_class", "hazard_qualifier", "assessment_state", "reason_codes", "required_remediation_ids"]:
 		_expect(ui.state.review_decision.has(field_id), "State ReviewDecision preserves %s" % field_id)
 	var saved_state: Dictionary = ui.state.to_dictionary()

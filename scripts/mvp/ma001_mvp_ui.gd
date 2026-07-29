@@ -94,6 +94,8 @@ var sales_restrictions_edit: LineEdit
 var sales_restriction_policy: OptionButton
 var review_controls: Dictionary = {}
 var gate_label: RichTextLabel
+var review_decision_label: RichTextLabel
+var submit_review_button: Button
 var disposition_label: RichTextLabel
 var save_claim_button: Button
 var save_listing_button: Button
@@ -667,6 +669,13 @@ func _build_review_tab() -> Control:
 	gate_label = _rich(155)
 	body.add_child(gate_label)
 
+	submit_review_button = _button("この情報で審査を提出する")
+	submit_review_button.pressed.connect(_submit_review)
+	body.add_child(submit_review_button)
+
+	review_decision_label = _rich(220)
+	body.add_child(review_decision_label)
+
 	_add_heading(body, "最終処分", 16)
 	disposition_grid = GridContainer.new()
 	disposition_grid.columns = 1
@@ -1077,6 +1086,10 @@ func _refresh_review() -> void:
 		disposition_label.text = "処分未決定。出品しない判断にも正式な履歴が残ります。"
 	else:
 		disposition_label.text = "処分：%s\n%s" % [state.disposition.get("label", ""), _auction_result_text()]
+
+	# VS-C4: ReviewDecision display
+	_refresh_review_decision_label()
+
 	var edit_allowed := presenter.is_action_available("edit_review")
 	for editor in [claim_edit, warrant_edit, authenticity_edit, period_edit, hazard_edit, unknowns_edit, restrictions_edit, sales_restrictions_edit]:
 		editor.editable = edit_allowed
@@ -1086,15 +1099,27 @@ func _refresh_review() -> void:
 	var edit_availability := presenter.get_action_availability("edit_review")
 	_refresh_claim_validation()
 	_set_cta_state(save_listing_button, edit_allowed, str(edit_availability.get("reason", "")))
+	_set_cta_state(submit_review_button, edit_allowed, str(edit_availability.get("reason", "")))
 	for question_id in review_controls:
 		review_controls[question_id]["option"].disabled = not edit_allowed
 		_set_cta_state(review_controls[question_id]["button"], edit_allowed, str(edit_availability.get("reason", "")))
+
+	# VS-C4: Filter disposition buttons by assessed_hazard_class
+	var available_dispositions: Array = state.get_available_dispositions()
+	var available_ids: Array = []
+	for d in available_dispositions:
+		available_ids.append(str(d.get("id", "")))
 	for disposition_id in disposition_buttons:
+		var is_available_by_class := available_ids.has(disposition_id)
 		var disposition_availability := presenter.get_action_availability("disposition", {"disposition_id": disposition_id})
+		var gate_allowed := bool(disposition_availability.get("allowed", false)) and is_available_by_class
+		var gate_reason := str(disposition_availability.get("reason", ""))
+		if not is_available_by_class:
+			gate_reason = "危険クラス評価により選択不可"
 		_set_cta_state(
 			disposition_buttons[disposition_id],
-			bool(disposition_availability.get("allowed", false)),
-			str(disposition_availability.get("reason", "")),
+			gate_allowed,
+			gate_reason,
 			false,
 			false,
 			str(presenter.get_record("dispositions", disposition_id).get("kind", "")) == "HOLD"
@@ -1546,6 +1571,46 @@ func _answer_review(question_id: String, option: OptionButton) -> void:
 func _decide_disposition(disposition_id: String) -> void:
 	if state.decide_disposition(disposition_id):
 		_show_success("最終処分をTraceEventへ確定しました")
+
+
+func _submit_review() -> void:
+	var result := state.submit_review()
+	if result.is_empty():
+		_show_error("審査提出を拒否しました（Claim構造か提出条件を確認してください）")
+	else:
+		var decision := str(result.get("decision", ""))
+		match decision:
+			"PASS":
+				_show_success("審査: PASS — %s 危険クラス評価: %s" % [str(result.get("hazard_qualifier", "")), str(result.get("assessed_hazard_class", ""))])
+			"CONDITIONAL":
+				_show_error("審査: CONDITIONAL — 修正が必要です: %s" % str(result.get("required_remediation_ids", [])))
+			_:
+				_show_error("審査: REJECT — %s" % str(result.get("reason_codes", [])))
+
+
+func _refresh_review_decision_label() -> void:
+	if review_decision_label == null:
+		return
+	if state == null or state.review_decision.is_empty():
+		if review_decision_label != null:
+			review_decision_label.text = "[color=#888888]審査はまだ提出されていません[/color]"
+		return
+	var dec: Dictionary = state.review_decision
+	var decision_str := str(dec.get("decision", "REJECT"))
+	var hazard_class := str(dec.get("assessed_hazard_class", "UNASSESSED"))
+	var qualifier := str(dec.get("hazard_qualifier", "NONE"))
+	var assessment_state := str(dec.get("assessment_state", "UNASSESSED"))
+	var reason_codes: Array = dec.get("reason_codes", [])
+	var remediations: Array = dec.get("required_remediation_ids", [])
+
+	var color := "#55bb55" if decision_str == "PASS" else ("#ffaa00" if decision_str == "CONDITIONAL" else "#ff6666")
+	var text := "[color=%s]審査決定: %s[/color]\n" % [color, decision_str]
+	text += "評価危険クラス: %s  |  確信度: %s  |  評価状態: %s\n" % [hazard_class, qualifier, assessment_state]
+	if not reason_codes.is_empty():
+		text += "[color=#ffaa00]理由: %s[/color]\n" % "  /  ".join(PackedStringArray(reason_codes))
+	if not remediations.is_empty():
+		text += "[color=#ff9966]修正要求: %s[/color]" % "  /  ".join(PackedStringArray(remediations))
+	review_decision_label.text = text
 
 
 func _run_auction() -> void:

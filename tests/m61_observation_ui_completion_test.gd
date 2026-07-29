@@ -43,8 +43,8 @@ func _run() -> void:
 
 	# ── Step 2: Intake Execution & Reactive UI Refresh ────────────────────────
 	print("  Step 2: Execute Intake & Verify Reactive UI Refresh")
-	var intake_ok: bool = ui.state.receive_lot()
-	_expect(intake_ok, "Lot received successfully")
+	_expect(ui.intake_button != null, "Intake button exists")
+	ui.intake_button.pressed.emit()
 	await process_frame
 
 	_expect(str(ui.state.lot_state.get("status", "")) == "RECEIVED", "Lot status updated to RECEIVED")
@@ -53,8 +53,9 @@ func _run() -> void:
 		_expect(not obs_btn.disabled, "obs_visual button becomes ENABLED after intake")
 
 	# ── Step 3: Observation Execution via Presenter (M53 / M56 Atomic Path) ────
-	print("  Step 3: Execute Observation via Presenter")
-	ui._perform_observation("obs_visual")
+	print("  Step 3: Execute Observation through the wired UI button")
+	var candidate_keys_before: Array[String] = _candidate_keys_from_list(ui.action_candidate_list)
+	obs_btn.pressed.emit()
 	await process_frame
 
 	# ── Step 4: UI & Presentation Cue Synchronization ─────────────────────────
@@ -88,8 +89,19 @@ func _run() -> void:
 
 	# ── Step 6: CapabilityResolver Action Candidates Reactive Update ────────
 	print("  Step 6: Verify Action Candidates Reactive Recalculation")
-	var candidate_count: int = ui.action_candidate_list.item_count
-	_expect(candidate_count > 0, "Action candidate list reprojected candidates dynamically after observation")
+	var candidate_keys_after: Array[String] = _candidate_keys_from_list(ui.action_candidate_list)
+	var presenter_candidate_keys: Array[String] = []
+	for candidate_value in ui.presenter.get_action_candidates():
+		var candidate: Dictionary = candidate_value
+		presenter_candidate_keys.append(str(candidate.get("canonical_action_key", "")))
+	_expect(
+		candidate_keys_after != candidate_keys_before,
+		"Action candidate keys change after committed observation"
+	)
+	_expect(
+		candidate_keys_after == presenter_candidate_keys,
+		"Action candidate list exactly matches the current Presenter projection"
+	)
 
 	# Cleanup
 	ui.queue_free()
@@ -112,3 +124,12 @@ func _expect(condition: bool, message: String) -> void:
 		pass_count += 1
 	else:
 		failures.append(message)
+
+
+func _candidate_keys_from_list(item_list: ItemList) -> Array[String]:
+	var keys: Array[String] = []
+	if item_list == null:
+		return keys
+	for index in range(item_list.item_count):
+		keys.append(str(item_list.get_item_metadata(index)))
+	return keys

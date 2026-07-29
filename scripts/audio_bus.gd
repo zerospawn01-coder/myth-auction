@@ -64,8 +64,6 @@ func stop_cue(cue_id: String) -> bool:
 	match resolved_cue_id:
 		"cue_lab_ambience_loop":
 			_engine.call("stop_ambience")
-		"cue_gene_mixer_loop":
-			_engine.call("stop_mixer_loop")
 		"cue_gate_scan":
 			_engine.call("stop_scan_loop")
 		_:
@@ -77,7 +75,7 @@ func stop_all_loops() -> void:
 	initialize()
 	if _engine == null:
 		return
-	for method_name in ["stop_ambience", "stop_mixer_loop", "stop_scan_loop"]:
+	for method_name in ["stop_ambience", "stop_scan_loop"]:
 		if _engine.has_method(method_name):
 			_engine.call(method_name)
 

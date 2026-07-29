@@ -27,7 +27,7 @@ static func create_slot_definition(
 	required_properties: Array = [],
 	required_capabilities: Array = [],
 	domain_matching: bool = false
-) -> Object:
+) -> ActionSlotDefinition:
 	var slot = ActionSlotDefinitionScript.new()
 	var entity_kind := "SUBJECT"
 	if role == "contact": entity_kind = "CONTACT"

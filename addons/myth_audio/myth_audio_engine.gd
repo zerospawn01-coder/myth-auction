@@ -14,7 +14,6 @@ const CATEGORY_DEFAULTS := {
 	"UI": 0.4,
 	"Device": 0.6,
 	"Gate": 0.6,
-	"Bioroid": 0.6,
 	"Mission": 0.6,
 	"Ambience": 0.2
 }
@@ -63,15 +62,6 @@ var _duck_amount := 1.0
 var _ambience_active := false
 var _ambience_phase := 0.0
 var _ambience_buzz_phase := 0.0
-
-var _mixer_loop_active := false
-var _mixer_phase_a := 0.0
-var _mixer_phase_b := 0.0
-var _mixer_bubble_phase := 0.0
-var _mixer_next_bubble_time := 0.0
-var _mixer_bubble_start_time := -1.0
-var _mixer_bubble_start_frequency := 300.0
-var _mixer_bubble_end_frequency := 80.0
 
 var _scan_loop_active := false
 var _scan_phase := 0.0
@@ -154,7 +144,6 @@ func suspend() -> void:
 
 func shutdown() -> void:
 	stop_ambience()
-	stop_mixer_loop()
 	stop_scan_loop()
 	_voices.clear()
 	_active_cues.clear()
@@ -273,22 +262,6 @@ func stop_ambience() -> void:
 	_set_cue_active("cue_lab_ambience_loop", false)
 
 
-func start_mixer_loop() -> void:
-	if _mixer_loop_active:
-		return
-	_mixer_loop_active = true
-	_mixer_next_bubble_time = _time
-	_set_cue_active("cue_gene_mixer_loop", true)
-	_cue_expirations.erase("cue_gene_mixer_loop")
-
-
-func stop_mixer_loop() -> void:
-	if not _mixer_loop_active:
-		return
-	_mixer_loop_active = false
-	_set_cue_active("cue_gene_mixer_loop", false)
-
-
 func start_scan_loop() -> void:
 	if _scan_loop_active:
 		return
@@ -336,36 +309,6 @@ func _cue_ui_error() -> float:
 	return 0.26
 
 
-func _cue_gene_mixer_start() -> float:
-	_trigger_ducking(0.8, 0.4)
-	_add_voice("Device", "saw", 0.85, 0.2, [[0.0, 100.0], [0.5, 600.0], [0.85, 600.0]], [[0.0, 0.05], [0.4, 1.0], [0.85, 0.0]], 0.0, 0.15, "cue_gene_mixer_start")
-	return 0.85
-
-
-func _cue_gene_mixer_complete() -> float:
-	stop_mixer_loop()
-	_stop_cue_voices("cue_gene_mixer_start")
-	_set_cue_active("cue_gene_mixer_start", false)
-	_trigger_ducking(1.2, 0.4)
-	var frequencies := [523.25, 659.25, 783.99, 1046.5]
-	for i in range(frequencies.size()):
-		_add_voice("Device", "sine", 1.3, 0.1, [[0.0, frequencies[i]]], [[0.0, 0.0], [0.01, 1.0], [1.2, 0.001], [1.3, 0.0]], float(i) * 0.05)
-	return 1.3
-
-
-func _cue_extractor_start() -> float:
-	_trigger_ducking(1.0, 0.3)
-	_add_voice("Device", "saw", 1.1, 0.2, [[0.0, 60.0], [1.0, 45.0]], [[0.0, 0.05], [0.8, 1.0], [1.05, 0.001], [1.1, 0.0]], 0.0, 0.12)
-	return 1.1
-
-
-func _cue_extractor_complete() -> float:
-	_trigger_ducking(1.5, 0.2)
-	_add_voice("Device", "triangle", 0.5, 0.3, [[0.0, 120.0], [0.4, 30.0]], [[0.0, 1.0], [0.4, 0.001], [0.5, 0.0]])
-	_add_voice("Device", "noise", 1.0, 0.15, [[0.0, 3000.0], [0.8, 1000.0]], [[0.0, 0.0], [0.05, 1.0], [0.9, 0.001], [1.0, 0.0]], 0.0, 1.0)
-	return 1.0
-
-
 func _cue_gate_approve() -> float:
 	stop_scan_loop()
 	_trigger_ducking(1.2, 0.4)
@@ -410,39 +353,6 @@ func _cue_ledger_warning() -> float:
 	return 0.75
 
 
-func _cue_bioloid_birth() -> float:
-	_trigger_ducking(2.0, 0.3)
-	var frequencies := [220.0, 277.18, 329.63, 440.0, 554.37, 659.25]
-	for i in range(frequencies.size()):
-		var delay := float(i) * 0.1
-		var frequency := float(frequencies[i])
-		_add_voice("Bioroid", "sine", 2.0, 0.06, [[0.0, frequency], [0.8, frequency * 2.0]], [[0.0, 0.0], [0.1, 1.0], [1.8, 0.001], [2.0, 0.0]], delay)
-	return 2.0
-
-
-func _cue_bioloid_corrupt() -> float:
-	_trigger_ducking(1.5, 0.25)
-	_add_voice("Bioroid", "square", 1.0, 0.12, [[0.0, 300.0], [0.15, 240.0], [0.3, 180.0], [0.45, 120.0], [0.8, 40.0]], [[0.0, 1.0], [0.95, 0.001], [1.0, 0.0]], 0.0, 0.2)
-	return 1.0
-
-
-func _cue_bioloid_accident() -> float:
-	_trigger_ducking(4.0, 0.1)
-	for i in range(5):
-		var delay := float(i) * 0.5
-		var sweep := [[0.0, 100.0], [0.2, 1000.0], [0.45, 100.0]]
-		var envelope := [[0.0, 0.0], [0.1, 1.0], [0.48, 0.001], [0.5, 0.0]]
-		_add_voice("Bioroid", "saw", 0.5, 0.2, sweep, envelope, delay)
-		_add_voice("Bioroid", "saw", 0.5, 0.16, [[0.0, 105.0], [0.2, 1005.0], [0.45, 105.0]], envelope, delay)
-	return 2.5
-
-
-func _cue_bioloid_lost() -> float:
-	_trigger_ducking(1.5, 0.3)
-	_add_voice("Bioroid", "sine", 1.3, 0.12, [[0.0, 880.0], [0.4, 880.0], [0.8, 440.0], [1.2, 40.0]], [[0.0, 1.0], [0.5, 1.0], [1.25, 0.001], [1.3, 0.0]])
-	return 1.3
-
-
 func _cue_mission_dispatch() -> float:
 	_trigger_ducking(1.5, 0.2)
 	_add_voice("Mission", "saw", 1.3, 0.3, [[0.0, 400.0], [1.2, 40.0]], [[0.0, 0.0], [0.15, 1.0], [1.25, 0.001], [1.3, 0.0]], 0.0, 0.4)
@@ -467,8 +377,6 @@ func _mix_frame() -> float:
 
 	if _ambience_active:
 		sample += _mix_ambience() * _category_gain("Ambience")
-	if _mixer_loop_active:
-		sample += _mix_mixer_loop() * _category_gain("Device")
 	if _scan_loop_active:
 		sample += _mix_scan_loop() * _category_gain("Gate")
 
@@ -495,28 +403,6 @@ func _mix_ambience() -> float:
 	var buzz := _waveform_sample("saw", _ambience_buzz_phase) * 0.04 * corruption_ratio
 	var air := _rng.randf_range(-1.0, 1.0) * 0.01 * corruption_ratio
 	return (hum + buzz + air) * throb
-
-
-func _mix_mixer_loop() -> float:
-	_mixer_phase_a = wrapf(_mixer_phase_a + TAU * 110.0 / MIX_RATE, 0.0, TAU)
-	_mixer_phase_b = wrapf(_mixer_phase_b + TAU * 110.5 / MIX_RATE, 0.0, TAU)
-
-	var sample := (sin(_mixer_phase_a) * 0.6 + _waveform_sample("triangle", _mixer_phase_b) * 0.4) * 0.12
-
-	if _time >= _mixer_next_bubble_time:
-		_mixer_bubble_start_time = _time
-		_mixer_bubble_start_frequency = _rng.randf_range(200.0, 600.0)
-		_mixer_bubble_end_frequency = _rng.randf_range(50.0, 100.0)
-		_mixer_next_bubble_time = _time + _rng.randf_range(0.22, 0.38)
-
-	var bubble_age := _time - _mixer_bubble_start_time
-	if bubble_age >= 0.0 and bubble_age <= 0.25:
-		var ratio := bubble_age / 0.25
-		var frequency := lerp(_mixer_bubble_start_frequency, _mixer_bubble_end_frequency, ratio)
-		_mixer_bubble_phase = wrapf(_mixer_bubble_phase + TAU * frequency / MIX_RATE, 0.0, TAU)
-		sample += sin(_mixer_bubble_phase) * (1.0 - ratio) * 0.08
-
-	return sample
 
 
 func _mix_scan_loop() -> float:

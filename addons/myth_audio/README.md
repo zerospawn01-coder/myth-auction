@@ -26,7 +26,7 @@ Preferred gameplay API:
 
 ```gdscript
 AudioBus.set_parameters(60.0, 35.0)
-AudioBus.play_cue("cue_gene_mixer_complete")
+AudioBus.play_cue("cue_bid_commit")
 AudioBus.play_cue("cue_lab_ambience_loop")
 AudioBus.stop_cue("cue_lab_ambience_loop")
 ```
@@ -34,22 +34,20 @@ AudioBus.stop_cue("cue_lab_ambience_loop")
 Direct engine API:
 
 ```gdscript
-const AetherAudioEngine = preload("res://addons/aether_fountain_audio/aether_audio_engine.gd")
+const MythAudioEngineScript = preload("res://addons/myth_audio/myth_audio_engine.gd")
 
-var audio := AetherAudioEngine.new()
+var audio := MythAudioEngineScript.new()
 add_child(audio)
 audio.initialize()
 audio.set_master_volume(0.5)
 audio.set_parameters(60.0, 35.0)
-audio.play_cue("cue_gene_mixer_complete")
+audio.play_cue("cue_bid_commit")
 ```
 
 Looping cues stay active until stopped:
 
 ```gdscript
 audio.play_cue("cue_lab_ambience_loop")
-audio.play_cue("cue_gene_mixer_loop")
-audio.stop_mixer_loop()
 audio.play_cue("cue_gate_scan")
 audio.stop_scan_loop()
 ```
@@ -59,7 +57,6 @@ audio.stop_scan_loop()
 - `UI`
 - `Device`
 - `Gate`
-- `Bioroid`
 - `Mission`
 - `Ambience`
 

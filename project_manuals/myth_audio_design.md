@@ -1,4 +1,4 @@
-# Aether Fountain: 音声・効果音アセット設計書 (CRIWARE/ADX対応版)
+# MYTH AUCTION: 音声・効果音アセット設計書 (CRIWARE/ADX対応版)
 
 GodotへのCRIWARE (CRI ADX) 正式対応に伴い、本作の音声実装は従来の「ファイル直接再生型」から**「イベント連動型（Cue駆動）サウンドシステム」**へ移行します。
 
@@ -20,14 +20,6 @@ GodotへのCRIWARE (CRI ADX) 正式対応に伴い、本作の音声実装は従
 - `cue_ui_error`
 - `cue_ui_tab_switch`
 
-### 研究装置系
-
-- `cue_gene_mixer_start`
-- `cue_gene_mixer_loop`
-- `cue_gene_mixer_complete`
-- `cue_extractor_start`
-- `cue_extractor_complete`
-
 ### Gate / Ledger系
 
 - `cue_gate_scan`
@@ -35,12 +27,6 @@ GodotへのCRIWARE (CRI ADX) 正式対応に伴い、本作の音声実装は従
 - `cue_gate_reject`
 - `cue_gate_fail_closed`
 - `cue_ledger_write`
-
-### バイオロイド系
-
-- `cue_bioloid_birth`
-- `cue_bioloid_corrupt`
-- `cue_bioloid_accident`
 
 ### 任務・アリーナ系
 

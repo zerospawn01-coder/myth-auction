@@ -80,6 +80,9 @@ var audit_decision_select: OptionButton
 
 var claim_edit: TextEdit
 var warrant_edit: TextEdit
+var claim_type_select: OptionButton
+var predicted_hazard_select: OptionButton
+var claim_validation_label: RichTextLabel
 var claim_evidence_list: ItemList
 var claim_evidence_list_hint: Label
 var authenticity_edit: LineEdit
@@ -551,6 +554,27 @@ func _build_review_tab() -> Control:
 	execute_candidate_button.pressed.connect(_execute_selected_action_candidate)
 	body.add_child(execute_candidate_button)
 	_add_heading(body, "研究主張を組み立てる")
+	_add_heading(body, "CLAIM TYPE／鑑定タイプ", 16)
+	claim_type_select = OptionButton.new()
+	_populate_options(claim_type_select, [
+		{"id": "GENUINE_RELIC", "label": "真作・伝承遺物"},
+		{"id": "MODERN_REPLICA", "label": "現代模倣品"},
+		{"id": "ANOMALOUS_OBJECT", "label": "非正規異常体"},
+		{"id": "FORGERY_CONTRABAND", "label": "偽作・密売品"},
+		{"id": "HAZARDOUS_CONTAINED", "label": "危険封印対象"}
+	])
+	body.add_child(claim_type_select)
+
+	_add_heading(body, "PREDICTED HAZARD／予測危険クラス", 16)
+	predicted_hazard_select = OptionButton.new()
+	_populate_options(predicted_hazard_select, [
+		{"id": "CLASS_0_SAFE", "label": "Class-0 (無害・安定)"},
+		{"id": "CLASS_1_MINOR", "label": "Class-1 (軽微・低リスク)"},
+		{"id": "CLASS_2_HAZARDOUS", "label": "Class-2 (危険・取扱注意)"},
+		{"id": "CLASS_3_CRITICAL", "label": "Class-3 (極秘・壊滅的)"}
+	])
+	body.add_child(predicted_hazard_select)
+
 	_add_heading(body, "CLAIM／主張", 16)
 	claim_edit = TextEdit.new()
 	claim_edit.placeholder_text = "この品物を何として扱うか。断定範囲を含めて記述"
@@ -558,6 +582,7 @@ func _build_review_tab() -> Control:
 	claim_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	_register_draft_editor(claim_edit)
 	body.add_child(claim_edit)
+
 	_add_heading(body, "WARRANT／論拠", 16)
 	warrant_edit = TextEdit.new()
 	warrant_edit.placeholder_text = "選んだEvidenceからClaimへ至る論理的接続"
@@ -565,6 +590,7 @@ func _build_review_tab() -> Control:
 	warrant_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	_register_draft_editor(warrant_edit)
 	body.add_child(warrant_edit)
+
 	_add_heading(body, "EVIDENCE／根拠", 16)
 	claim_evidence_list = ItemList.new()
 	claim_evidence_list.select_mode = ItemList.SELECT_MULTI
@@ -573,6 +599,12 @@ func _build_review_tab() -> Control:
 	body.add_child(claim_evidence_list)
 	claim_evidence_list_hint = _list_hint()
 	body.add_child(claim_evidence_list_hint)
+
+	claim_validation_label = RichTextLabel.new()
+	claim_validation_label.bbcode_enabled = true
+	claim_validation_label.fit_content = true
+	body.add_child(claim_validation_label)
+
 	save_claim_button = _button("選択した根拠で研究主張を保存")
 	save_claim_button.pressed.connect(_save_claim)
 	body.add_child(save_claim_button)
@@ -1011,7 +1043,41 @@ func _refresh_commission_actions() -> void:
 func _refresh_review() -> void:
 	_sync_editor_text(claim_edit, str(state.claim.get("claim_text", "")))
 	_sync_editor_text(warrant_edit, str(state.claim.get("warrant", "")))
+	if claim_type_select != null:
+		_select_option_by_id(claim_type_select, str(state.claim.get("claim_type", "GENUINE_RELIC")))
+	if predicted_hazard_select != null:
+		_select_option_by_id(predicted_hazard_select, str(state.claim.get("predicted_hazard_class", "CLASS_0_SAFE")))
+
+	_refresh_claim_validation()
+
 	_sync_editor_text(authenticity_edit, str(state.listing.get("authenticity", "")))
+
+
+func _refresh_claim_validation() -> void:
+	if claim_validation_label == null or state == null:
+		return
+	var ids: Array = []
+	if claim_evidence_list != null:
+		for index in claim_evidence_list.get_selected_items():
+			ids.append(str(claim_evidence_list.get_item_metadata(index)))
+	var c_type := _selected_option_id(claim_type_select) if claim_type_select != null else "GENUINE_RELIC"
+	if c_type.is_empty(): c_type = "GENUINE_RELIC"
+	var p_haz := _selected_option_id(predicted_hazard_select) if predicted_hazard_select != null else "CLASS_0_SAFE"
+	if p_haz.is_empty(): p_haz = "CLASS_0_SAFE"
+
+	var draft_claim := {
+		"claim_text": claim_edit.text if claim_edit != null else "",
+		"warrant": warrant_edit.text if warrant_edit != null else "",
+		"evidence_ids": ids,
+		"claim_type": c_type,
+		"predicted_hazard_class": p_haz
+	}
+	var val_res := state.validate_claim_schema(draft_claim)
+	if bool(val_res.get("valid", false)):
+		claim_validation_label.text = "[color=#55bb55]主張構造：正常 (Validator PASS)[/color]"
+	else:
+		var err_text := "\n・".join(PackedStringArray(val_res.get("errors", [])))
+		claim_validation_label.text = "[color=#ff6666]主張構造エラー：\n・%s[/color]" % err_text
 	_sync_editor_text(period_edit, str(state.listing.get("estimated_period", "")))
 	_sync_editor_text(hazard_edit, str(state.listing.get("hazard_disclosure", "")))
 	_sync_editor_text(unknowns_edit, "、".join(PackedStringArray(state.listing.get("unknowns", []))))
@@ -1430,7 +1496,12 @@ func _save_claim() -> void:
 	var ids: Array = []
 	for index in claim_evidence_list.get_selected_items():
 		ids.append(str(claim_evidence_list.get_item_metadata(index)))
-	if state.set_claim(claim_edit.text, warrant_edit.text, ids, "限定条件下"):
+	var c_type := _selected_option_id(claim_type_select)
+	if c_type.is_empty(): c_type = "GENUINE_RELIC"
+	var p_haz := _selected_option_id(predicted_hazard_select)
+	if p_haz.is_empty(): p_haz = "CLASS_0_SAFE"
+
+	if state.set_claim(claim_edit.text, warrant_edit.text, ids, "限定条件下", c_type, p_haz):
 		_clear_editor_dirty([claim_edit, warrant_edit])
 		_show_success("研究主張を保存しました。説明変更後は再審査が必要です")
 
@@ -1674,6 +1745,12 @@ func _option(labels: Array) -> OptionButton:
 func _add_option_with_id(option: OptionButton, label: String, id: String) -> void:
 	option.add_item(label)
 	option.set_item_metadata(option.item_count - 1, id)
+
+
+func _populate_options(option: OptionButton, items: Array) -> void:
+	for item_value in items:
+		var item: Dictionary = item_value
+		_add_option_with_id(option, str(item.get("label", "")), str(item.get("id", "")))
 
 
 func _selected_option_id(option: OptionButton) -> String:

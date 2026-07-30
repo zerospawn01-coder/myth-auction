@@ -7,6 +7,7 @@ tmp/
 .playwright-mcp/
 *.tmp
 *.log
+.test-results/
 
 # Excluded projects (relocated externally)
 projects/

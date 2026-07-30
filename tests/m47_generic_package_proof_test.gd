@@ -119,6 +119,7 @@ func _test_ma002_non_auction_lifecycle() -> void:
 				[str(evidence.get("evidence_id", ""))],
 				"限定的"
 			)
+			state.submit_review()
 	if not state.decide_disposition("publish_anonymized_findings"):
 		_fail("M47-3: MA-002 must complete through publication without auction: %s" % state.last_error)
 	elif str(state.lot_state.get("status", "")) != "PUBLISHED":

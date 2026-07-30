@@ -1,5 +1,9 @@
 # MA-001 M49 Device UX Session Sheet
 
+> この記録用紙は
+> [MYTH AUCTION 正式プレイテスト基準 v1.0](myth_auction_playtest_standard.md)
+> に従って使用する。Gate 0が不合格のセッションは正式なUX合格根拠にしない。
+
 最初の5セッションを同じ案件・画面順・初期資金・審査条件で比較する。テスターへ完成手順は示さず、各時間帯の目的だけを伝える。
 
 ## セッション情報
@@ -7,14 +11,35 @@
 ```text
 Session ID:
 実施日:
+Commit SHA:
+GitHub Actions run URL:
+Godot version:
+テスト種別（擬似初見／人間初見）:
 端末／OS:
 画面解像度・表示倍率:
 入力方式（touch / mouse / keyboard）:
 テスターのゲーム経験:
 研究・監査系UIの経験:
+user-data root識別子:
+開始時セーブ状態:
 開始時package hash:
 観察者:
 ```
+
+## Playtest Gate 0確認
+
+```text
+検出スイート数:
+PASS:
+FAIL / ERROR:
+TIMEOUT:
+SKIP / EXCLUDED:
+保存・再開確認:
+状態汚染確認:
+Gate 0判定:
+```
+
+Gate 0が不合格の場合はUX合格判定へ進まず、再現情報と停止地点だけを記録する。
 
 ## 課題記録
 
@@ -25,6 +50,23 @@ Session ID:
 | 12–18分 | 衝突するEvidenceを見つけ、次の調査を決める |  |  |  |
 | 18–24分 | 委託か自力継続かを選び、理由を述べる |  |  |  |
 | 24–30分 | Claimを作り、処分を一つ選ぶ |  |  |  |
+
+## 問題・迷いの記録
+
+問題ごとに複製して使用する。
+
+```text
+時刻:
+画面／状態:
+プレイヤーがしようとしたこと:
+期待した結果:
+実際に起きた結果:
+迷った箇所:
+誤操作:
+戻り方が分かったか:
+重大度（PT-S0／PT-S1／PT-S2／PT-S3／Observation）:
+修正案:
+```
 
 ## 概念理解
 
@@ -89,12 +131,28 @@ Enterを送信と誤認したか:
 ## 合否集計
 
 ```text
+[ ] 30秒以内に最初の意味ある操作を行えた
+[ ] 3分以内に主要ループへ入れた
 [ ] Evidence／Hypothesis／Claimを説明なしで区別できた
 [ ] 画面迷子が2回以下
 [ ] 最終判断を2件以上の履歴へ結び付けた
 [ ] 研究保留・返却を失敗扱いしなかった
 [ ] 致命的な入力消失がなかった
 [ ] 主CTAへ到達不能な画面がなかった
+```
+
+```text
+Playtest Gate 1判定:
+Playtest Gate 2A判定:
+Playtest Gate 3判定:
+Playtest Gate 4判定:
+PT-S0件数:
+PT-S1件数:
+PT-S2件数:
+PT-S3件数:
+Observation件数:
+総合判定:
+再テスト条件:
 ```
 
 ## セッション後の変更判断

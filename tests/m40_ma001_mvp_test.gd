@@ -135,7 +135,9 @@ func _test_commission_review_disposition_and_roundtrip() -> void:
 		"この鏡は複数時代の部品を含み、限定条件下で観察者の記憶へ干渉する可能性がある。",
 		"独立競売記録と再現した共鳴観察が一致し、現代補修の存在を含めても限定的な危険開示が必要である。",
 		mapped_ids,
-		"限定条件下"
+		"限定条件下",
+		"GENUINE_RELIC",
+		"CLASS_1_MINOR"
 	):
 		_fail("M40-3: Claim should accept evidence and observation IDs without copying them.")
 	state.update_listing({
@@ -156,6 +158,7 @@ func _test_commission_review_disposition_and_roundtrip() -> void:
 	var gate_failures := state.get_listing_gate_failures()
 	if not gate_failures.is_empty():
 		_fail("M40-3: Responsible, evidence-backed conditional listing should pass: %s" % str(gate_failures))
+	state.submit_review()
 	if not state.decide_disposition("conditional_listing"):
 		_fail("M40-3: Conditional listing should be a valid final disposition.")
 	var result: Dictionary = state.run_auction()
@@ -195,6 +198,9 @@ func _test_non_sale_dispositions() -> void:
 		var state = MythMvpStateScript.new()
 		state.initialize()
 		state.receive_lot()
+		if disposition_id == "reject_return":
+			if not state.decide_disposition("research_hold"):
+				_fail("M40-4: Reject/return setup must enter research hold first.")
 		if not state.decide_disposition(disposition_id):
 			_fail("M40-4: %s should remain valid without auction gate." % disposition_id)
 		if not state.run_auction().is_empty():
@@ -212,7 +218,9 @@ func _test_non_sale_dispositions() -> void:
 				"研究保留後に得た来歴資料を使い、鏡の由来を限定的に再検討する主張である。",
 				"保留後に開いた独立資料の引用を、断定を避けた来歴評価へ接続している。",
 				[str(held_evidence.get("evidence_id", ""))],
-				"研究保留中"
+				"研究保留中",
+				"GENUINE_RELIC",
+				"CLASS_0_SAFE"
 			):
 				_fail("M40-4: Research hold must allow Claim resubmission with new Evidence.")
 			if not state.decide_disposition("reject_return"):

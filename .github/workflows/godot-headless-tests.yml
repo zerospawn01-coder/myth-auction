@@ -1,0 +1,86 @@
+name: Godot headless tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    # Monday 03:00 JST (Sunday 18:00 UTC).
+    - cron: "0 18 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godot-headless-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Godot 4.7 / all headless suites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GODOT_VERSION: 4.7-stable
+      GODOT_ARCHIVE: Godot_v4.7-stable_linux.x86_64.zip
+      TEST_RESULTS_DIR: .test-results/godot
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install official Godot build
+        shell: bash
+        run: |
+          set -euo pipefail
+          install_dir="${RUNNER_TEMP}/godot"
+          mkdir -p "${install_dir}"
+          cd "${install_dir}"
+
+          release_url="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}"
+          curl --fail --location --retry 3 --output "${GODOT_ARCHIVE}" \
+            "${release_url}/${GODOT_ARCHIVE}"
+          curl --fail --location --retry 3 --output SHA512-SUMS.txt \
+            "${release_url}/SHA512-SUMS.txt"
+
+          grep "  ${GODOT_ARCHIVE}$" SHA512-SUMS.txt | sha512sum --check -
+          unzip -q "${GODOT_ARCHIVE}"
+          chmod +x Godot_v4.7-stable_linux.x86_64
+
+          godot_bin="${install_dir}/Godot_v4.7-stable_linux.x86_64"
+          echo "GODOT_BIN=${godot_bin}" >> "${GITHUB_ENV}"
+          "${godot_bin}" --version
+
+      - name: Import project and validate scripts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:TEST_RESULTS_DIR | Out-Null
+          & $env:GODOT_BIN --headless --editor --path . --quit 2>&1 |
+            Tee-Object -FilePath "$env:TEST_RESULTS_DIR/import.log"
+          $importExitCode = $LASTEXITCODE
+          if ($importExitCode -ne 0) {
+            exit $importExitCode
+          }
+
+      - name: Run all Godot test suites
+        shell: pwsh
+        run: |
+          ./.github/scripts/run-godot-tests.ps1 `
+            -GodotBinary $env:GODOT_BIN `
+            -ResultsDirectory $env:TEST_RESULTS_DIR `
+            -TestTimeoutSeconds 120
+
+      - name: Upload Godot test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-headless-test-logs
+          path: .test-results/godot/
+          if-no-files-found: warn
+          retention-days: 14

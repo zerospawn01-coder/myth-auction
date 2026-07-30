@@ -48,7 +48,13 @@ func _test_disposition_requires_intake() -> void:
 
 func _test_terminal_states_are_immutable() -> void:
 	var returned = MythMvpStateScript.new()
-	if not returned.initialize() or not returned.receive_lot() or not returned.decide_disposition("reject_return"):
+	if not returned.initialize() or not returned.receive_lot():
+		_fail("M42-2: Return terminal setup failed.")
+		return
+	if not returned.decide_disposition("research_hold"):
+		_fail("M42-2: Return terminal setup could not enter research hold.")
+		return
+	if not returned.decide_disposition("reject_return"):
 		_fail("M42-2: Return terminal setup failed.")
 		return
 	var returned_tick: int = returned.tick
@@ -185,7 +191,9 @@ func _prepare_approved_listing(sales_restriction_ids: Array):
 		"この鏡は独立取引記録を持ち、限定条件下で観察者の記憶へ干渉する可能性がある。",
 		"独立競売記録と再現した共鳴観察が一致し、危険条件を限定して開示できる。",
 		[provenance_id, provenance_id, "OBS-MA001-RESONANCE", "OBS-MA001-RESONANCE"],
-		"限定条件下"
+		"限定条件下",
+		"GENUINE_RELIC",
+		"CLASS_1_MINOR"
 	):
 		return null
 	if not state.update_listing({
@@ -204,6 +212,7 @@ func _prepare_approved_listing(sales_restriction_ids: Array):
 		return null
 	if not state.answer_review("review_commission", "exclude_report").get("passed", false):
 		return null
+	state.submit_review()
 	if not state.decide_disposition("conditional_listing"):
 		return null
 	return state

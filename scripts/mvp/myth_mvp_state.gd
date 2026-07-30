@@ -11,7 +11,11 @@ const ActionIntentPipelineScript = preload("res://scripts/mvp/action_intent_pipe
 const SAVE_SCHEMA_VERSION := 2
 const LEGACY_SAVE_SCHEMA_VERSION := 1
 const DEFAULT_PACKAGE_SETTING := "myth_auction/default_case_package"
-const EVIDENCE_RELATIONS := ["SUPPORTING", "CONTRADICTORY", "UNRESOLVED"]
+const EVIDENCE_RELATIONS := ["SUPPORT", "CONTRADICT", "CONTEXT", "UNRESOLVED"]
+const LEGACY_EVIDENCE_RELATION_ALIASES := {
+	"SUPPORTING": "SUPPORT",
+	"CONTRADICTORY": "CONTRADICT"
+}
 const AUDIT_DECISIONS := ["ACCEPT", "EXCLUDE", "REQUEST_EXPLANATION", "REANALYZE"]
 const VALID_CLAIM_TYPES := ["GENUINE_RELIC", "MODERN_REPLICA", "ANOMALOUS_OBJECT", "FORGERY_CONTRABAND", "HAZARDOUS_CONTAINED"]
 const VALID_HAZARD_CLASSES := ["CLASS_0_SAFE", "CLASS_1_MINOR", "CLASS_2_HAZARDOUS", "CLASS_3_CRITICAL"]
@@ -306,7 +310,7 @@ func open_document(document_id: String) -> Dictionary:
 func clip_excerpt(document_id: String, excerpt_id: String, relation: String = "UNRESOLVED") -> Dictionary:
 	if not _require_action("research"):
 		return {}
-	var normalized_relation := relation.to_upper()
+	var normalized_relation := _normalize_evidence_relation(relation)
 	if normalized_relation not in EVIDENCE_RELATIONS:
 		_fail("証拠分類が不正です")
 		return {}
@@ -344,7 +348,7 @@ func clip_excerpt(document_id: String, excerpt_id: String, relation: String = "U
 func classify_evidence(evidence_id: String, relation: String) -> bool:
 	if not _require_action("research"):
 		return false
-	var normalized := relation.to_upper()
+	var normalized := _normalize_evidence_relation(relation)
 	if not evidence_cards.has(evidence_id) or normalized not in EVIDENCE_RELATIONS:
 		return _fail("証拠または分類が不正です")
 	evidence_cards[evidence_id]["player_relation"] = normalized
@@ -356,7 +360,7 @@ func classify_evidence(evidence_id: String, relation: String) -> bool:
 func connect_evidence(hypothesis_id: String, evidence_id: String, relation: String) -> bool:
 	if not _require_action("research"):
 		return false
-	var normalized := relation.to_upper()
+	var normalized := _normalize_evidence_relation(relation)
 	if not hypothesis_states.has(hypothesis_id) or not evidence_cards.has(evidence_id):
 		return _fail("仮説または証拠が存在しません")
 	if normalized not in EVIDENCE_RELATIONS:
@@ -603,8 +607,6 @@ func validate_claim_schema(target_claim: Dictionary = {}) -> Dictionary:
 	for evidence_id in mapped_ids:
 		if not _is_claim_source_valid(evidence_id):
 			errors.append("主張が失われた、または存在しない証拠を参照しています: %s" % evidence_id)
-		elif _commission_evidence_has_unresolved_audit(evidence_id):
-			errors.append("未解決の委託監査報告を出品根拠に使用しています: %s" % evidence_id)
 
 	var claim_type := str(c.get("claim_type", "GENUINE_RELIC")).to_upper()
 	if not c.get("claim_type", "").is_empty() and claim_type not in VALID_CLAIM_TYPES:
@@ -657,12 +659,11 @@ func create_review_fact_snapshot() -> RefCounted:
 
 	snap.known_hazard_tags = _to_string_array(lot_state.get("known_hazard_tags", []))
 
-	for evidence_id in _to_string_array(claim.get("evidence_ids", [])):
-		if evidence_cards.has(evidence_id):
-			snap.evidence_facts.append(evidence_cards[evidence_id].duplicate(true))
-
-	for obs_id in observations:
-		snap.observation_facts.append(observations[obs_id].duplicate(true))
+	for source_id in _to_string_array(claim.get("evidence_ids", [])):
+		if evidence_cards.has(source_id):
+			snap.evidence_facts.append(evidence_cards[source_id].duplicate(true))
+		elif observations.has(source_id):
+			snap.observation_facts.append(observations[source_id].duplicate(true))
 
 	for comm_id in commissions:
 		snap.commission_facts.append(commissions[comm_id].duplicate(true))
@@ -925,12 +926,20 @@ func get_available_dispositions() -> Array:
 func _disposition_review_failure(definition: Dictionary) -> String:
 	var kind := str(definition.get("kind", ""))
 	var requires_restrictions := bool(definition.get("requires_restrictions", false))
+	var is_currently_held := str(disposition.get("disposition_id", "")) == "research_hold"
+	# Publishing research findings does not transfer custody of the lot, so an
+	# unresolved hazard assessment must not block this non-custodial outcome.
+	if kind == "PUBLISH":
+		return ""
 	if review_decision.is_empty():
-		return "" if kind == "HOLD" else "処分前に審査提出が必要です"
+		if kind == "HOLD" or (kind == "RETURN" and is_currently_held):
+			return ""
+		return "処分前に審査提出が必要です"
 	var decision := str(review_decision.get("decision", "REJECT"))
 	var hazard_class := str(review_decision.get("assessed_hazard_class", "UNASSESSED"))
 	if hazard_class in ["UNASSESSED", "CLASS_3_CRITICAL"] and kind != "HOLD":
-		return "未評価または重大危険の対象は研究保留のみ選択できます"
+		if not (kind == "RETURN" and str(disposition.get("disposition_id", "")) == "research_hold"):
+			return "未評価または重大危険の対象は研究保留のみ選択できます"
 	if hazard_class == "CLASS_2_HAZARDOUS" and (kind != "HOLD" and not (kind == "LIST" and requires_restrictions)):
 		return "Class-2対象は条件付き出品または研究保留のみ選択できます"
 	if hazard_class == "CLASS_1_MINOR" and kind == "LIST" and not requires_restrictions:
@@ -1547,6 +1556,11 @@ func _is_claim_source_valid(source_id: String) -> bool:
 	if not evidence_cards.has(source_id):
 		return false
 	return str(evidence_cards[source_id].get("status", "candidate")).to_lower() != "invalidated"
+
+
+func _normalize_evidence_relation(relation: String) -> String:
+	var normalized := relation.to_upper()
+	return str(LEGACY_EVIDENCE_RELATION_ALIASES.get(normalized, normalized))
 
 
 func _any_commission_detected(anomaly_id: String) -> bool:

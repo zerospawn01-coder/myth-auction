@@ -163,6 +163,30 @@ func _run() -> void:
 		"Rejected clip leaves State, tick, Trace, and M53 records unchanged"
 	)
 
+	var legacy_relation_state = _fresh_state()
+	if legacy_relation_state != null:
+		legacy_relation_state.search_documents([])
+		legacy_relation_state.open_document("DOC-MA001-001")
+		var legacy_card: Dictionary = legacy_relation_state.clip_excerpt(
+			"DOC-MA001-001",
+			"EX-MA001-001A",
+			"SUPPORTING"
+		)
+		_expect(
+			str(legacy_card.get("player_relation", "")) == "SUPPORT",
+			"Legacy SUPPORTING input is normalized to canonical SUPPORT"
+		)
+		var legacy_evidence_id := str(legacy_card.get("evidence_id", ""))
+		_expect(
+			legacy_relation_state.classify_evidence(legacy_evidence_id, "CONTRADICTORY"),
+			"Legacy CONTRADICTORY input remains accepted at the API boundary"
+		)
+		_expect(
+			str(legacy_relation_state.evidence_cards[legacy_evidence_id].get("player_relation", ""))
+				== "CONTRADICT",
+			"Legacy CONTRADICTORY input is stored as canonical CONTRADICT"
+		)
+
 	_finish()
 
 

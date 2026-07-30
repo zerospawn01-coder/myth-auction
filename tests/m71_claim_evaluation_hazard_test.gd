@@ -72,6 +72,17 @@ func _run() -> void:
 	var empty_res = evaluator.call("evaluate", empty_snap)
 	_expect(empty_res.assessed_hazard_class == &"UNASSESSED", "Empty known hazard tags result in UNASSESSED (got: %s)" % empty_res.assessed_hazard_class)
 	_expect(empty_res.assessed_hazard_class != &"CLASS_0_SAFE", "UNASSESSED is strictly not equal to CLASS_0_SAFE")
+	var predicted_safe_snap = ReviewFactSnapshotScript.new()
+	predicted_safe_snap.predicted_hazard_class = &"CLASS_0_SAFE"
+	predicted_safe_snap.evidence_facts = [{
+		"evidence_id": "EVID-GENERIC-001",
+		"player_relation": "SUPPORT"
+	}]
+	var predicted_safe_res = evaluator.call("evaluate", predicted_safe_snap)
+	_expect(
+		predicted_safe_res.assessed_hazard_class == &"UNASSESSED",
+		"Self-declared CLASS_0_SAFE without explicit safe facts remains UNASSESSED"
+	)
 
 	# ── Test 05: Explicit Safe Evidence -> CLASS_0_SAFE VERIFIED ──────────────
 	print("  Test 05: Explicit Safe Evidence Produces CLASS_0_SAFE VERIFIED")

@@ -21,6 +21,9 @@ func evaluate(facts: RefCounted) -> RefCounted:
 	var verified_support := false
 	var safe_evidence_count := 0
 
+	var pred_val = facts.get("predicted_hazard_class")
+	var pred_class := str(pred_val) if pred_val != null else ""
+
 	var known_tags: PackedStringArray = facts.get("known_hazard_tags")
 	for tag in known_tags:
 		var tag_str := str(tag).to_lower()
@@ -30,6 +33,28 @@ func evaluate(facts: RefCounted) -> RefCounted:
 			max_severity_found = max(max_severity_found, 2)
 		elif "minor" in tag_str or "irritant" in tag_str or "heat" in tag_str:
 			max_severity_found = max(max_severity_found, 1)
+
+	var observation_facts: Array = facts.get("observation_facts")
+	if not observation_facts.is_empty():
+		verified_support = true
+	for obs_val in observation_facts:
+		var obs: Dictionary = obs_val if typeof(obs_val) == TYPE_DICTIONARY else {}
+		var tags: Array = (
+			obs.get("tags", [])
+			+ obs.get("hazard_tags", [])
+			+ obs.get("anomaly_tags", [])
+			+ obs.get("diagnosis_tags", [])
+		)
+		for t in tags:
+			var ts := str(t).to_lower()
+			if "safe" in ts or "stable" in ts or "inert" in ts:
+				safe_evidence_count += 1
+			elif "critical" in ts or "lethal" in ts or "distortion" in ts:
+				max_severity_found = max(max_severity_found, 3)
+			elif "hazardous" in ts or "corrosive" in ts or "toxic" in ts:
+				max_severity_found = max(max_severity_found, 2)
+			elif "minor" in ts or "resonance" in ts or "heat" in ts:
+				max_severity_found = max(max_severity_found, 1)
 
 	var evidence_facts: Array = facts.get("evidence_facts")
 	for ev_val in evidence_facts:
@@ -44,6 +69,15 @@ func evaluate(facts: RefCounted) -> RefCounted:
 				safe_evidence_count += 1
 			elif "critical" in ts or "lethal" in ts or "distortion" in ts:
 				max_severity_found = max(max_severity_found, 3)
+
+	if verified_support:
+		match pred_class:
+			"CLASS_3_CRITICAL":
+				max_severity_found = max(max_severity_found, 3)
+			"CLASS_2_HAZARDOUS":
+				max_severity_found = max(max_severity_found, 2)
+			"CLASS_1_MINOR":
+				max_severity_found = max(max_severity_found, 1)
 
 	if max_severity_found == 3:
 		result.assessed_hazard_class = &"CLASS_3_CRITICAL"

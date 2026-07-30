@@ -44,6 +44,8 @@ func _run() -> void:
 	if ui.subject_stage_label.text.find("Evidence 1") == -1:
 		_fail("M41: Subject card did not reflect case-specific Evidence progress.")
 	_assert_ui_action_parity(ui, "during research")
+	if not ui.state.decide_disposition("research_hold"):
+		_fail("M41: Return disposition setup could not enter research hold.")
 	if not ui.state.decide_disposition("reject_return"):
 		_fail("M41: Return disposition setup failed.")
 	await process_frame

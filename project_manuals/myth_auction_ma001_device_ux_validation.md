@@ -1,5 +1,10 @@
 # MA-001 480 × 854 実機UX検証契約
 
+> **上位基準:** 本検証は
+> [MYTH AUCTION 正式プレイテスト基準 v1.0](myth_auction_playtest_standard.md)
+> に従う。本文はMA-001固有の実施条件を追加するものであり、上位基準のGate順序、
+> 重大度、証跡要件を置き換えない。
+
 ## マイルストーン状態
 
 **MA-001 Research Case Vertical Slice：M49自動preflight完了、実機5セッション待ち**
